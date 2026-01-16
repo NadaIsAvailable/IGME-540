@@ -11,6 +11,12 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
 
+// This code assumes files are in "ImGui" subfolder!
+// Adjust as necessary for your own folder structure and project setup
+#include "ImGui/imgui.h"
+#include "ImGui/imgui_impl_dx11.h"
+#include "ImGui/imgui_impl_win32.h"
+
 // For the DirectX Math library
 using namespace DirectX;
 
@@ -47,6 +53,27 @@ Game::Game()
 		Graphics::Context->VSSetShader(vertexShader.Get(), 0, 0);
 		Graphics::Context->PSSetShader(pixelShader.Get(), 0, 0);
 	}
+
+	// Initialize ImGui itself & platform/renderer backends
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui_ImplWin32_Init(Window::Handle());
+	ImGui_ImplDX11_Init(Graphics::Device.Get(), Graphics::Context.Get());
+	// Pick a style (uncomment one of these 3)
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsLight();
+	//ImGui::StyleColorsClassic();
+
+	// UI testing varaibles
+	// Background color
+	backgroundColor = new float[4] { 0.4f, 0.6f, 0.75f, 0.0f };
+
+	// 2 var toggler
+	testArrayPtr = new float[2] { 0.5f, 0.5f };
+
+	// text input
+	textInput = new char[256];
+	strcpy_s(textInput, 256, "edit this text");
 }
 
 
@@ -58,7 +85,15 @@ Game::Game()
 // --------------------------------------------------------
 Game::~Game()
 {
+	// ImGui clean up
+	ImGui_ImplDX11_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
 
+	// Clean up pointers
+	delete[] backgroundColor;
+	delete[] testArrayPtr;
+	delete[] textInput;
 }
 
 
@@ -244,6 +279,61 @@ void Game::Update(float deltaTime, float totalTime)
 	// Example input checking: Quit if the escape key is pressed
 	if (Input::KeyDown(VK_ESCAPE))
 		Window::Quit();
+
+	UpdateImGui(deltaTime);
+	BuildUI();
+}
+
+// --------------------------------------------------------
+// UI helper methods
+// --------------------------------------------------------
+void Game::UpdateImGui(float deltaTime)
+{
+	// Put this all in a helper method that is called from Game::Update()
+	// Feed fresh data to ImGui
+	ImGuiIO& io = ImGui::GetIO();
+	io.DeltaTime = deltaTime;
+	io.DisplaySize.x = (float)Window::Width();
+	io.DisplaySize.y = (float)Window::Height();
+	// Reset the frame
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+	// Determine new input capture
+	Input::SetKeyboardCapture(io.WantCaptureKeyboard);
+	Input::SetMouseCapture(io.WantCaptureMouse);
+
+	if (showDemoWindow)
+		// Show the demo window
+		ImGui::ShowDemoWindow();
+}
+
+void Game::BuildUI()
+{
+	// Begin building custom ui window
+	ImGui::Begin("Assignment 02 - Custom UI Window");
+
+	// Frame rate display
+	ImGui::Text("Frame Rate: %f fps", ImGui::GetIO().Framerate);
+
+	// Window size display
+	ImGui::Text("Window Client Size: %ix%i", Window::Width(), Window::Height());
+
+	// Background color editor
+	ImGui::ColorEdit4("Background Color Editor", backgroundColor);
+
+	// Button to toggle on and off the demo window
+	if (ImGui::Button("Toggle Demo Window"))
+		showDemoWindow = !showDemoWindow;
+
+	// UI components test
+	ImGui::SliderInt("Choose a number", &number, 0, 100);
+	ImGui::DragFloat2("2-component editor", testArrayPtr);
+	ImGui::InputText("Input Text Label", textInput, 256);
+	ImGui::Text("Current text: %s", textInput);
+
+	// End custom ui window
+	ImGui::End();
 }
 
 
@@ -257,8 +347,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	// - At the beginning of Game::Draw() before drawing *anything*
 	{
 		// Clear the back buffer (erase what's on screen) and depth buffer
-		const float color[4] = { 0.4f, 0.6f, 0.75f, 0.0f };
-		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	color);
+		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	backgroundColor);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
@@ -287,6 +376,9 @@ void Game::Draw(float deltaTime, float totalTime)
 			0,     // Offset to the first index we want to use
 			0);    // Offset to add to each index when looking up vertices
 	}
+
+	ImGui::Render(); // Turns this frame’s UI into renderable triangles
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
 
 	// Frame END
 	// - These should happen exactly ONCE PER FRAME

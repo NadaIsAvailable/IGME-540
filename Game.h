@@ -18,10 +18,19 @@ public:
 	void OnResize();
 
 private:
+	// Used for UI testing purposes
+	float* backgroundColor;
+	bool showDemoWindow = true;
+	int number = 0;
+	float* testArrayPtr;
+	char* textInput;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadShaders();
 	void CreateGeometry();
+
+	void UpdateImGui(float deltaTime);
+	void BuildUI();
 
 	// Note the usage of ComPtr below
 	//  - This is a smart pointer for objects that abide by the
