@@ -2,6 +2,9 @@
 
 #include <d3d11.h>
 #include <wrl/client.h>
+#include <memory>
+#include <vector>
+#include "Mesh.h"
 
 class Game
 {
@@ -20,10 +23,13 @@ public:
 private:
 	// Used for UI testing purposes
 	float* backgroundColor;
-	bool showDemoWindow = true;
+	bool showDemoWindow = false;
 	int number = 0;
 	float* testArrayPtr;
 	char* textInput;
+
+	// Mesh class testing
+	std::vector<std::shared_ptr<Mesh>> meshes;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadShaders();
