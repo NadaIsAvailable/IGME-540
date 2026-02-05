@@ -4,6 +4,7 @@
 #include "Input.h"
 #include "PathHelpers.h"
 #include "Window.h"
+#include "BufferStructs.h"
 
 #include <string>
 #include <DirectXMath.h>
@@ -75,6 +76,27 @@ Game::Game()
 	// text input
 	textInput = new char[256];
 	strcpy_s(textInput, 256, "edit this text");
+
+	// Calculate the next biggest multiple of 16
+	uint size = sizeof(VertexShaderExternalData);
+	size = (size + 15) / 16 * 16;
+
+	// Create the constant buffer to send arbitary data
+	// to the rendering process
+	D3D11_BUFFER_DESC cbd{};
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER; // which process of the pipeline is used for
+	cbd.ByteWidth = size;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.MiscFlags = 0;
+	cbd.StructureByteStride = 0;
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
+
+	Graphics::Device->CreateBuffer(&cbd, 0, constantBuffer.GetAddressOf());
+
+	// Bind this constant buffer to the pipeline for
+	// vertex shader at index zero (b0)
+	//							starting index, num of buffers, array of data
+	Graphics::Context->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
 }
 
 
@@ -402,6 +424,28 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 	*/
 
+	// Copy new data to the constant buffer for upcoming draws
+	VertexShaderExternalData data{};
+	data.offset = XMFLOAT3(1, 0, 0);
+	data.colorTint = XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
+
+	// Map the buffer to get its raw memory address
+	D3D11_MAPPED_SUBRESOURCE map;
+	Graphics::Context->Map(
+		constantBuffer.Get(),
+		0,							// subresource
+		D3D11_MAP_WRITE_DISCARD,	// write and it's safe to discard the previous data
+		0,
+		&map						// description struct about this map
+	);
+
+	// Copy the data
+	memcpy(map.pData, &data, sizeof(VertexShaderExternalData));
+
+	// Unmap the buffer
+	Graphics::Context->Unmap(constantBuffer.Get(), 0);
+
+	// Draw all meshes
 	for (auto& mesh : meshes)
 	{
 		mesh->Draw();
