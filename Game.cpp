@@ -65,16 +65,27 @@ Game::Game()
 	//ImGui::StyleColorsLight();
 	//ImGui::StyleColorsClassic();
 
-	// UI testing varaibles
-	// Background color
-	backgroundColor = new float[4] { 0.4f, 0.6f, 0.75f, 0.0f };
+	// Create a constant buffer to send abritary data to the rendering process
+	// Buffer description
+	D3D11_BUFFER_DESC cbd = {};
+	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	cbd.ByteWidth = (sizeof(VSConstantBuffer) + 15) / 16 * 16;
+	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	cbd.MiscFlags = 0;
+	cbd.StructureByteStride = 0;
+	cbd.Usage = D3D11_USAGE_DYNAMIC;
 
-	// 2 var toggler
-	testArrayPtr = new float[2] { 0.5f, 0.5f };
+	// Create the buffer
+	Graphics::Device->CreateBuffer(&cbd, 0, vsConstantBuffer.GetAddressOf());
 
-	// text input
-	textInput = new char[256];
-	strcpy_s(textInput, 256, "edit this text");
+	// Bind this constant buffer to the pipeline for
+	// vertex shader at index zero (b0)
+	//						   starting index, num of buffers, array of data
+	Graphics::Context->VSSetConstantBuffers(0, 1, vsConstantBuffer.GetAddressOf());
+
+	// Set some initial data for the constant buffer
+	vsData.colorTint = DirectX::XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
+	vsData.offset = DirectX::XMFLOAT3(0.5f, 0, 0);
 }
 
 
@@ -90,11 +101,6 @@ Game::~Game()
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
-
-	// Clean up pointers
-	delete[] backgroundColor;
-	delete[] testArrayPtr;
-	delete[] textInput;
 }
 
 
@@ -315,7 +321,7 @@ void Game::BuildUI()
 	// Begin building custom ui window
 	ImGui::Begin("Inspector");
 
-	// Assignment 02 UI testing
+	// Assignment 02 - ImGui
 	if (ImGui::CollapsingHeader("App Details"))
 	{
 		// Frame rate display
@@ -338,7 +344,7 @@ void Game::BuildUI()
 		ImGui::Text("Current text: %s", textInput);
 	}
 
-	// Assignment 03 - Mesh class testing
+	// Assignment 03 - Mesh class
 	if (ImGui::CollapsingHeader("Meshes"))
 	{
 		for (auto& mesh : meshes) 
@@ -353,6 +359,16 @@ void Game::BuildUI()
 				ImGui::Text("Indices: %i", mesh->GetIndexCount());
 			}
 		}
+	}
+
+	// Assignment 04 - Constant Buffer
+	if (ImGui::CollapsingHeader("Constant Buffer")) 
+	{
+		// Color tint editor
+		ImGui::ColorEdit4("Color Tint Editor", &vsData.colorTint.x);
+
+		// Offset editor
+		ImGui::DragFloat3("Offset Editor", &vsData.offset.x, 0.01f);
 	}
 
 	// End custom ui window
@@ -373,6 +389,16 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	backgroundColor);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
+
+	// Map the buffer to get its raw memory address
+	D3D11_MAPPED_SUBRESOURCE map;
+	Graphics::Context->Map(vsConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+	// Copy the data
+	memcpy(map.pData, &vsData, sizeof(VSConstantBuffer));
+
+	// Unmap the buffer
+	Graphics::Context->Unmap(vsConstantBuffer.Get(), 0);
 
 	// DRAW geometry
 	// - These steps are generally repeated for EACH object you draw
@@ -402,6 +428,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 	*/
 
+	// Draw all meshes
 	for (auto& mesh : meshes)
 	{
 		mesh->Draw();
