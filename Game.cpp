@@ -426,8 +426,24 @@ void Game::Draw(float deltaTime, float totalTime)
 
 	// Copy new data to the constant buffer for upcoming draws
 	VertexShaderExternalData data{};
-	data.offset = XMFLOAT3(1, 0, 0);
 	data.colorTint = XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
+	data.matrix = XMFLOAT4X4();
+
+	// Translation matrix
+	XMMATRIX trMat = XMMatrixTranslation((float)sin(totalTime), 0, 0);
+
+	// Rotation matrix
+	XMMATRIX rotMat = XMMatrixRotationRollPitchYaw(0, 0, totalTime);
+
+	// Scaling matrix
+	float scale = (float)sin(totalTime * 3.7f) * 0.5f + 1.0f;
+	XMMATRIX scMat = XMMatrixScaling(scale, scale, scale);
+
+	// Build a "world matrix"
+	XMMATRIX worldMat = scMat * rotMat * trMat;
+
+	// Store the result
+	XMStoreFloat4x4(&data.matrix, worldMat);
 
 	// Map the buffer to get its raw memory address
 	D3D11_MAPPED_SUBRESOURCE map;
