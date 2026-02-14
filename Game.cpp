@@ -25,13 +25,31 @@ using namespace DirectX;
 // The constructor is called after the window and graphics API
 // are initialized but before the game loop begins
 // --------------------------------------------------------
-Game::Game()
+Game::Game() :
+	backgroundColor(0.4f, 0.6f, 0.75f, 0.0f),
+	showDemoWindow(false),
+	number(0),
+	testArrayPtr(0.5, 0.5f),
+	textInput("edit this text")
 {
 	// Helper methods for loading shaders, creating some basic
 	// geometry to draw and some simple camera matrices.
 	//  - You'll be expanding and/or replacing these later
 	LoadShaders();
 	CreateGeometry();
+
+	// Create some game entities with the meshes we just made
+	for (auto& mesh : meshes) 
+	{
+		entities.push_back(GameEntity(mesh));
+	}
+
+	// Test mesh shared ptr by creating some entities with the same mesh
+	// and setting different positions for them to see them as separate objects in the scene
+	entities.push_back(GameEntity(meshes[0]));
+	entities[entities.size() - 1].GetTransform()->SetPosition(0, 0.5f, 0);
+	entities.push_back(GameEntity(meshes[0]));
+	entities[entities.size() - 1].GetTransform()->SetPosition(0, -0.5f, 0);
 
 	// Set initial graphics API state
 	//  - These settings persist until we change them
@@ -85,7 +103,7 @@ Game::Game()
 
 	// Set some initial data for the constant buffer
 	vsData.colorTint = DirectX::XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
-	vsData.offset = DirectX::XMFLOAT3(0.5f, 0, 0);
+	XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
 }
 
 
@@ -362,6 +380,7 @@ void Game::BuildUI()
 	}
 
 	// Assignment 04 - Constant Buffer
+	/*
 	if (ImGui::CollapsingHeader("Constant Buffer")) 
 	{
 		// Color tint editor
@@ -369,6 +388,36 @@ void Game::BuildUI()
 
 		// Offset editor
 		ImGui::DragFloat3("Offset Editor", &vsData.offset.x, 0.01f);
+	}
+	*/
+
+	// Assignment 04 - Game Entity and Transform
+	if (ImGui::CollapsingHeader("Scene Entities"))
+	{
+		for (uint i = 0; i < entities.size(); i++)
+		{
+			// header for each mesh
+			std::string header = "Entity " + std::to_string(i) +
+				'(' + entities[i].GetMesh()->GetName() + ')';
+			if (ImGui::CollapsingHeader(header.c_str()))
+			{
+				ImGui::PushID(i);
+
+				XMFLOAT3 pos = entities[i].GetTransform()->GetPosition();
+				ImGui::DragFloat3("Position", &pos.x, 0.01f);
+				entities[i].GetTransform()->SetPosition(pos);
+
+				XMFLOAT3 rot = entities[i].GetTransform()->GetPitchYawRoll();
+				ImGui::DragFloat3("Rotation (Radians)", &rot.x, 0.01f);
+				entities[i].GetTransform()->SetRotation(rot);
+
+				XMFLOAT3 scale = entities[i].GetTransform()->GetScale();
+				ImGui::DragFloat3("Scale", &scale.x, 0.01f);
+				entities[i].GetTransform()->SetScale(scale);
+
+				ImGui::PopID();
+			}
+		}
 	}
 
 	// End custom ui window
@@ -389,16 +438,6 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	backgroundColor);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
-
-	// Map the buffer to get its raw memory address
-	D3D11_MAPPED_SUBRESOURCE map;
-	Graphics::Context->Map(vsConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-	// Copy the data
-	memcpy(map.pData, &vsData, sizeof(VSConstantBuffer));
-
-	// Unmap the buffer
-	Graphics::Context->Unmap(vsConstantBuffer.Get(), 0);
 
 	// DRAW geometry
 	// - These steps are generally repeated for EACH object you draw
@@ -428,10 +467,27 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 	*/
 
-	// Draw all meshes
-	for (auto& mesh : meshes)
+	// Draw all entities
+	for (auto& entity : entities)
 	{
-		mesh->Draw();
+		// Rotate each entity a little
+		entity.GetTransform()->Rotate(0, 0, sin(deltaTime * 0.5f));
+
+		// Get the world matrix for this entity and store it in the constant buffer data
+		vsData.world = entity.GetTransform()->GetWorldMatrix();
+
+		// Map the buffer to get its raw memory address
+		D3D11_MAPPED_SUBRESOURCE map;
+		Graphics::Context->Map(vsConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+		// Copy the data
+		memcpy(map.pData, &vsData, sizeof(VSConstantBuffer));
+
+		// Unmap the buffer
+		Graphics::Context->Unmap(vsConstantBuffer.Get(), 0);
+
+		// Draw the entity
+		entity.Draw();
 	}
 
 	ImGui::Render(); // Turns this frame’s UI into renderable triangles

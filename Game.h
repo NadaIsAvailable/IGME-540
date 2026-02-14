@@ -8,6 +8,7 @@
 
 #include "Mesh.h"
 #include "BufferStructs.h"
+#include "GameEntity.h"
 
 class Game
 {
@@ -26,16 +27,20 @@ public:
 private:
 	// Used for UI purposes (with default values)
 	// Assignment 02 - ImGui
-	float backgroundColor[4] { 0.4f, 0.6f, 0.75f, 0.0f };
-	bool showDemoWindow = false;
-	int number = 0;
-	float testArrayPtr[2] { 0.5f, 0.5f };
-	char textInput[256]{ "edit this text" };
-	// Assignment 04 - Constant Buffer
+	float backgroundColor[4];
+	bool showDemoWindow;
+	int number;
+	float testArrayPtr[2];
+	char textInput[256];
+
+	// Constant Buffer
 	VSConstantBuffer vsData{};
 
 	// Mesh class testing
 	std::vector<std::shared_ptr<Mesh>> meshes;
+
+	// GameEntity class testing
+	std::vector<GameEntity> entities;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadShaders();
