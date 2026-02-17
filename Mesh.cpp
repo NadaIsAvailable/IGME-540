@@ -1,5 +1,6 @@
 #include "Mesh.h"
 #include "Graphics.h"
+#include "GameEntity.h"
 
 Mesh::Mesh(std::string name, Vertex* vertices, uint vertCount, uint* indices, uint indCount)
 {

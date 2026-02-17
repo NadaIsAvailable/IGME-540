@@ -4,7 +4,11 @@
 #include <wrl/client.h>
 #include <memory>
 #include <vector>
+#include <DirectXMath.h>
+
 #include "Mesh.h"
+#include "BufferStructs.h"
+#include "GameEntity.h"
 
 class Game
 {
@@ -21,15 +25,22 @@ public:
 	void OnResize();
 
 private:
-	// Used for UI testing purposes
-	float* backgroundColor;
-	bool showDemoWindow = false;
-	int number = 0;
-	float* testArrayPtr;
-	char* textInput;
+	// Used for UI purposes (with default values)
+	// Assignment 02 - ImGui
+	float backgroundColor[4];
+	bool showDemoWindow;
+	int number;
+	float testArrayPtr[2];
+	char textInput[256];
+
+	// Constant Buffer
+	VSConstantBuffer vsData{};
 
 	// Mesh class testing
 	std::vector<std::shared_ptr<Mesh>> meshes;
+
+	// GameEntity class testing
+	std::vector<GameEntity> entities;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadShaders();
@@ -52,6 +63,7 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout;
 
-	Microsoft::WRL::ComPtr<ID3D11Buffer> constantBuffer;
+	// Constant buffers
+	Microsoft::WRL::ComPtr<ID3D11Buffer> vsConstantBuffer;
 };
 

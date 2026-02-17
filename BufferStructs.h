@@ -2,8 +2,8 @@
 
 #include <DirectXMath.h>
 
-struct VertexShaderExternalData 
+struct VSConstantBuffer
 {
 	DirectX::XMFLOAT4 colorTint;
-	DirectX::XMFLOAT4X4 matrix;
+	DirectX::XMFLOAT4X4 world;
 };
