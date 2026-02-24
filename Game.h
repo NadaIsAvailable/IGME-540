@@ -9,6 +9,7 @@
 #include "Mesh.h"
 #include "BufferStructs.h"
 #include "GameEntity.h"
+#include "Camera.h"
 
 class Game
 {
@@ -41,6 +42,10 @@ private:
 
 	// GameEntity class testing
 	std::vector<GameEntity> entities;
+
+	// Camera class testing
+	std::vector<std::shared_ptr<Camera>> cameras;
+	int activeCamera;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadShaders();

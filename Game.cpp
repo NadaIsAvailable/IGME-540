@@ -51,6 +51,25 @@ Game::Game() :
 	entities.push_back(GameEntity(meshes[0]));
 	entities[entities.size() - 1].GetTransform()->SetPosition(0, -0.5f, 0);
 
+	// Create a few cameras and store in vector
+	cameras.push_back(std::make_shared<Camera>(
+		Window::AspectRatio(), 
+		XMFLOAT3(0, 0, -5))
+	);
+	cameras.push_back(std::make_shared<Camera>(
+		Window::AspectRatio(), 
+		XMFLOAT3(0.5f, 0.5f, -2))
+	);
+	cameras.push_back(std::make_shared<Camera>(
+		Window::AspectRatio(),
+		XMFLOAT3(-0.5f, -0.5f, -3),
+		XMFLOAT3(0, XM_PIDIV4, 0),
+		XM_PI)
+	);
+
+	// set first camera as active camera
+	activeCamera = 0;
+
 	// Set initial graphics API state
 	//  - These settings persist until we change them
 	//  - Some of these, like the primitive topology & input layout, probably won't change
@@ -104,6 +123,8 @@ Game::Game() :
 	// Set some initial data for the constant buffer
 	vsData.colorTint = DirectX::XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
 	XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
+	XMStoreFloat4x4(&vsData.view, XMMatrixIdentity());
+	XMStoreFloat4x4(&vsData.projection, XMMatrixIdentity());
 }
 
 
@@ -293,7 +314,11 @@ void Game::CreateGeometry()
 // --------------------------------------------------------
 void Game::OnResize()
 {
-	
+	// update all camera's projection matrices
+	for (auto& camera : cameras)
+	{
+		if (camera) camera->UpdateProjectionMatrix(Window::AspectRatio());
+	}
 }
 
 
@@ -308,6 +333,8 @@ void Game::Update(float deltaTime, float totalTime)
 
 	UpdateImGui(deltaTime);
 	BuildUI();
+
+	cameras[activeCamera]->Update(deltaTime);
 }
 
 // --------------------------------------------------------
@@ -329,9 +356,8 @@ void Game::UpdateImGui(float deltaTime)
 	Input::SetKeyboardCapture(io.WantCaptureKeyboard);
 	Input::SetMouseCapture(io.WantCaptureMouse);
 
-	if (showDemoWindow)
-		// Show the demo window
-		ImGui::ShowDemoWindow();
+	// Show the demo window
+	if (showDemoWindow) ImGui::ShowDemoWindow();
 }
 
 void Game::BuildUI()
@@ -391,7 +417,7 @@ void Game::BuildUI()
 	}
 	*/
 
-	// Assignment 04 - Game Entity and Transform
+	// Assignment 05 - Game Entity and Transform
 	if (ImGui::CollapsingHeader("Scene Entities"))
 	{
 		for (uint i = 0; i < entities.size(); i++)
@@ -414,6 +440,65 @@ void Game::BuildUI()
 				XMFLOAT3 scale = entities[i].GetTransform()->GetScale();
 				ImGui::DragFloat3("Scale", &scale.x, 0.01f);
 				entities[i].GetTransform()->SetScale(scale);
+
+				ImGui::PopID();
+			}
+		}
+	}
+
+	// Assignment 06 - Camera
+	if (ImGui::CollapsingHeader("Cameras"))
+	{
+		// Select active camera------------------------------------------------
+		// Hardcoding the names...
+		const char* camNames[] = { "Camera 0", "Camera 1", "Camera 2" };
+
+		// Set up the dropdown
+		ImGui::Combo("Active Camera", &activeCamera, camNames, IM_ARRAYSIZE(camNames));
+
+		// Camera transform toggles -------------------------------------------
+		for (uint i = 0; i < cameras.size(); i++)
+		{
+			// header for each mesh
+			std::string header = "Camera " + std::to_string(i);
+			if (ImGui::CollapsingHeader(header.c_str()))
+			{
+				ImGui::PushID(i);
+
+				// Position
+				XMFLOAT3 pos = cameras[i]->GetTransform()->GetPosition();
+				ImGui::DragFloat3("Position", &pos.x, 0.01f);
+				cameras[i]->GetTransform()->SetPosition(pos);
+
+				// Rotation
+				XMFLOAT3 rot = cameras[i]->GetTransform()->GetPitchYawRoll();
+				ImGui::DragFloat3("Rotation (Radians)", &rot.x, 0.01f);
+				cameras[i]->GetTransform()->SetRotation(rot);
+
+				// FOV
+				float fov = cameras[i]->GetFov();
+				ImGui::DragFloat("Field of View (Radians)", &fov, 0.01f, 0.01f, XM_PI);
+				cameras[i]->SetFov(fov);
+
+				// Near plane
+				float nearPlane = cameras[i]->GetNearPlane();
+				ImGui::DragFloat("Near Plane", &nearPlane, 0.01f, 0.01f, cameras[i]->GetFarPlane());
+				cameras[i]->SetNearPlane(nearPlane);
+
+				// Far plane
+				float farPlane = cameras[i]->GetFarPlane();
+				ImGui::DragFloat("Far Plane", &farPlane, 1.0f, cameras[i]->GetNearPlane(), 1000.0f);
+				cameras[i]->SetFarPlane(farPlane);
+
+				// Movement speed
+				float movementSpeed = cameras[i]->GetMovementSpeed();
+				ImGui::DragFloat("Movement Speed", &movementSpeed, 0.01f, 0.01f, 10.0f);
+				cameras[i]->SetMovementSpeed(movementSpeed);
+
+				// Look speed
+				float lookSpeed = cameras[i]->GetLookSpeed();
+				ImGui::DragFloat("Look Speed", &lookSpeed, 0.001f, 0.001f, 0.05f);
+				cameras[i]->SetLookSpeed(lookSpeed);
 
 				ImGui::PopID();
 			}
@@ -467,11 +552,16 @@ void Game::Draw(float deltaTime, float totalTime)
 	}
 	*/
 
+	// Update the view and projection matrices in the constant buffer data
+	// (Same for all entities)
+	vsData.view = cameras[activeCamera]->GetView();
+	vsData.projection = cameras[activeCamera]->GetProjection();
+
 	// Draw all entities
 	for (auto& entity : entities)
 	{
 		// Rotate each entity a little
-		entity.GetTransform()->Rotate(0, 0, sin(deltaTime * 0.5f));
+		entity.GetTransform()->Rotate(0, 0, (float)sin(deltaTime * 0.5f));
 
 		// Get the world matrix for this entity and store it in the constant buffer data
 		vsData.world = entity.GetTransform()->GetWorldMatrix();
