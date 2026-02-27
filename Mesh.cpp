@@ -115,7 +115,7 @@ void Mesh::Draw()
 		//     vertices in the currently set VERTEX BUFFER
 		Graphics::Context->DrawIndexed(
 			indexCount,     // The number of indices to use (we could draw a subset if we wanted)
-			0,     // Offset to the first index we want to use
-			0);    // Offset to add to each index when looking up vertices
+			0,				// Offset to the first index we want to use
+			0);				// Offset to add to each index when looking up vertices
 	}
 }
