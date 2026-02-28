@@ -12,4 +12,6 @@ struct VSConstantBuffer
 struct PSConstantBuffer
 {
 	DirectX::XMFLOAT4 colorTint;
+	float totalTime;
+	DirectX::XMFLOAT3 intensities;
 };

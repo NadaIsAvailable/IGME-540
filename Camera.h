@@ -26,12 +26,12 @@ public:
 		float aspectRatio,
 		DirectX::XMFLOAT3 pos,
 		DirectX::XMFLOAT3 rot = DirectX::XMFLOAT3(0, 0, 0),
-		float fov = DirectX::XM_PIDIV2,
-		float nearPlane = 0.1f,
-		float farPlane = 100.0f,
 		float movementSpeed = 1.0f,
 		float lookSpeed = 0.01f,
-		bool isPerspective = true
+		bool isPerspective = true,
+		float fov = DirectX::XM_PIDIV2,
+		float nearPlane = 0.1f,
+		float farPlane = 100.0f
 	);
 
 	// Getters

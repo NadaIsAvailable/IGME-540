@@ -35,6 +35,8 @@ struct VertexToPixel
 	//  |    |                |
 	//  v    v                v
 	float4 screenPosition	: SV_POSITION;	// XYZW position (System Value Position)
+    float2 uv				: TEXCOORD; // UV coordinates
+    float3 normal			: NORMAL; // Normal vector
 };
 
 // --------------------------------------------------------
@@ -61,6 +63,10 @@ VertexToPixel main( VertexShaderInput input )
 	// Multiply the three matrices together first
     matrix wvp = mul(projection, mul(view, world));
     output.screenPosition = mul(wvp, float4(input.localPosition, 1.0f));
+	
+	// Pass UV and Normal to PS
+    output.uv = input.uv;
+    output.normal = input.normal;
 
 	// Whatever we return will make its way through the pipeline to the
 	// next programmable stage we're using (the pixel shader for now)

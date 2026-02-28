@@ -27,13 +27,19 @@ public:
 	void OnResize();
 
 private:
-	// Used for UI purposes (with default values)
-	// Assignment 02 - ImGui
+	// Used for UI purposes ---------------------------------------------------
+	// UI components test
 	float backgroundColor[4];
 	bool showDemoWindow;
 	int number;
 	float testArrayPtr[2];
 	char textInput[256];
+
+	// Rotation controls
+	bool rotateX;
+	bool rotateY;
+	bool rotateZ;
+	// ------------------------------------------------------------------------
 
 	// Constant Buffers
 	VSConstantBuffer vsData{};

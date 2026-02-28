@@ -9,19 +9,19 @@ Camera::Camera(
 	float aspectRatio, 
 	DirectX::XMFLOAT3 pos, 
 	DirectX::XMFLOAT3 rot, 
+	float movementSpeed,
+	float lookSpeed,
+	bool isPerspective,
 	float fov,
 	float nearPlane, 
-	float farPlane, 
-	float movementSpeed, 
-	float lookSpeed, 
-	bool isPerspective) :
+	float farPlane) :
 	aspectRatio(aspectRatio),
-	fov(fov),
-	nearPlane(nearPlane),
-	farPlane(farPlane),
 	movementSpeed(movementSpeed),
 	lookSpeed(lookSpeed),
-	isPerspective(isPerspective)
+	isPerspective(isPerspective),
+	fov(fov),
+	nearPlane(nearPlane),
+	farPlane(farPlane)
 {
 	// Create the transform and set the position and rotation
 	transform = std::make_shared<Transform>();

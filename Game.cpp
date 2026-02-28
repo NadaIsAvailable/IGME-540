@@ -30,7 +30,10 @@ Game::Game() :
 	showDemoWindow(false),
 	number(0),
 	testArrayPtr(0.5f, 0.5f),
-	textInput("edit this text")
+	textInput("edit this text"),
+	rotateX(false),
+	rotateY(true),
+	rotateZ(true)
 {
 	// Set ups
 	CreateEntities();
@@ -41,9 +44,10 @@ Game::Game() :
 		// Create a few cameras and store in vector
 		cameras.push_back(std::make_shared<Camera>(
 			Window::AspectRatio(),
-			XMFLOAT3(4.0f, 5.5f, -8.0f))
+			XMFLOAT3(7.0f, 6.0f, -9.0f),
+			XMFLOAT3(0.5f, 0.0f, 0.0f),
+			3.0f)
 		);
-		cameras[0]->GetTransform()->SetRotation(0.5f, 0.0f, 0.0f);
 
 		cameras.push_back(std::make_shared<Camera>(
 			Window::AspectRatio(),
@@ -116,6 +120,9 @@ Game::Game() :
 
 		// Bind this constant buffer to the pipeline for
 		Graphics::Context->PSSetConstantBuffers(0, 1, psConstantBuffer.GetAddressOf());
+
+		// Set some initial data for the constant buffer
+		DirectX::XMStoreFloat3(&psData.intensities, XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f));
 		// ---------------------------------------------------------------------------
 	}
 }
@@ -148,36 +155,26 @@ void Game::OnResize()
 }
 
 // --------------------------------------------------------
-// Update your game here - user input, move objects, AI, etc.
-// --------------------------------------------------------
-void Game::Update(float deltaTime, float totalTime)
-{
-	// Example input checking: Quit if the escape key is pressed
-	if (Input::KeyDown(VK_ESCAPE))
-		Window::Quit();
-
-	UpdateImGui(deltaTime);
-	BuildUI();
-
-	cameras[activeCamera]->Update(deltaTime);
-}
-
-// --------------------------------------------------------
 // Create game entities - load shader + create materials + load meshes -> entities
 // --------------------------------------------------------
 void Game::CreateEntities()
 {
-	std::vector<std::shared_ptr<Material>> materials;
-
 	// Load shaders
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> basicVS = LoadVertexShader(L"VertexShader.cso");
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> basicPS = LoadPixelShader(L"PixelShader.cso");
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> uvPS = LoadPixelShader(L"DebugUVsPS.cso");
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> normalPS = LoadPixelShader(L"DebugNormalsPS.cso");
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> customPS = LoadPixelShader(L"CustomPS.cso");
 
 	// Make materials
-	materials.push_back(std::make_shared<Material>("Red tint", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS));
-	materials.push_back(std::make_shared<Material>("Green tint", XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f), basicPS, basicVS));
-	materials.push_back(std::make_shared<Material>("Blue tint", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), basicPS, basicVS));
+	std::shared_ptr<Material> redTint = std::make_shared<Material>("Red tint", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS);
+	std::shared_ptr<Material> greenTint = std::make_shared<Material>("Green tint", XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f), basicPS, basicVS);
+	std::shared_ptr<Material> blueTint = std::make_shared<Material>("Blue tint", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), basicPS, basicVS);
+	std::shared_ptr<Material> uv = std::make_shared<Material>("UV", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), uvPS, basicVS);
+	std::shared_ptr<Material> normal = std::make_shared<Material>("Normal", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), normalPS, basicVS);
+	std::shared_ptr<Material> custom = std::make_shared<Material>("Custom", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), customPS, basicVS);
 
+	// Make meshes from the .obj files
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cube.obj").c_str()));
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cylinder.obj").c_str()));
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/helix.obj").c_str()));
@@ -187,20 +184,44 @@ void Game::CreateEntities()
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
 
 	// Create game entities with the meshes and materials we just made
-	entities.push_back(GameEntity(meshes[0], materials[0]));
-	entities.push_back(GameEntity(meshes[1], materials[1]));
-	entities.push_back(GameEntity(meshes[2], materials[2]));
-	entities.push_back(GameEntity(meshes[3], materials[0]));
-	entities.push_back(GameEntity(meshes[4], materials[1]));
-	entities.push_back(GameEntity(meshes[5], materials[2]));
-	entities.push_back(GameEntity(meshes[6], materials[0]));
+	for (auto& m : meshes)
+	{
+		entities.push_back(GameEntity(m, normal));
+	}
+
+	for (auto& m : meshes)
+	{
+		entities.push_back(GameEntity(m, uv));
+	}
+
+	for (auto& m : meshes)
+	{
+		entities.push_back(GameEntity(m, custom));
+	}
+
+	entities.push_back(GameEntity(meshes[0], redTint));
+	entities.push_back(GameEntity(meshes[1], greenTint));
+	entities.push_back(GameEntity(meshes[2], blueTint));
+	entities.push_back(GameEntity(meshes[3], redTint));
+	entities.push_back(GameEntity(meshes[4], greenTint));
+	entities.push_back(GameEntity(meshes[5], blueTint));
+	entities.push_back(GameEntity(meshes[6], redTint));
 
 	// Spread out the entities
-	int x = -5.0f;
-	for (auto& entity : entities)
+	float x = -5.0f;
+	float y = 4.0f;
+	int i = 0;
+	for (uint r = 0; r < 4; r++)
 	{
-		entity.GetTransform()->SetPosition(x, 0.0f, 0.0f);
-		x += 3.0f;
+		for (uint c = 0; c < 7; c++)
+		{
+			entities[i].GetTransform()->SetPosition(x, y, 0.0f);
+
+			x += 4.0f;
+			i++;
+		}
+		x = -5.0f;
+		y -= 4.0f;
 	}
 }
 
@@ -347,6 +368,10 @@ void Game::BuildUI()
 	// Assignment 05 - Game Entity and Transform
 	if (ImGui::CollapsingHeader("Scene Entities"))
 	{
+		ImGui::Checkbox("Rotate about X", &rotateX);
+		ImGui::Checkbox("Rotate about Y", &rotateY);
+		ImGui::Checkbox("Rotate about Z", &rotateZ);
+
 		for (uint i = 0; i < entities.size(); i++)
 		{
 			// header for each mesh
@@ -432,10 +457,21 @@ void Game::BuildUI()
 		}
 	}
 
+	// Assignment 06 - 3D Models, Materials & Shaders
+	if (ImGui::CollapsingHeader("Custom Shader"))
+	{
+		XMFLOAT3 intensity = psData.intensities;
+		ImGui::SliderFloat3("RGB Intensities", &intensity.x, 0.0f, 1.0f);
+		DirectX::XMStoreFloat3(&psData.intensities, XMLoadFloat3(&intensity));
+	}
+
 	// End custom ui window
 	ImGui::End();
 }
 
+// --------------------------------------------------------
+// Shader loaders
+// --------------------------------------------------------
 Microsoft::WRL::ComPtr<ID3D11PixelShader> Game::LoadPixelShader(std::wstring filePath)
 {
 	// BLOBs (or Binary Large OBjects) for reading raw data from external files
@@ -488,6 +524,35 @@ Microsoft::WRL::ComPtr<ID3D11VertexShader> Game::LoadVertexShader(std::wstring f
 }
 
 // --------------------------------------------------------
+// Update your game here - user input, move objects, AI, etc.
+// --------------------------------------------------------
+void Game::Update(float deltaTime, float totalTime)
+{
+	// Example input checking: Quit if the escape key is pressed
+	if (Input::KeyDown(VK_ESCAPE))
+		Window::Quit();
+
+	UpdateImGui(deltaTime);
+	BuildUI();
+
+	for (auto& entity : entities)
+	{
+		// Calcualte the rotation
+		XMFLOAT3 rot(0.0f, 0.0f, 0.0f);
+		float rotAmt = (float)sin(deltaTime * 0.5f);
+
+		if (rotateX) rot.x = rotAmt;
+		if (rotateY) rot.y = rotAmt;
+		if (rotateZ) rot.z = rotAmt;
+
+		// Rotate each entity a little
+		entity.GetTransform()->Rotate(rot);
+	}
+
+	cameras[activeCamera]->Update(deltaTime);
+}
+
+// --------------------------------------------------------
 // Clear the screen, redraw everything, present to the user
 // --------------------------------------------------------
 void Game::Draw(float deltaTime, float totalTime)
@@ -501,18 +566,18 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
-	// Update the view and projection matrices in the constant buffer data
+	// Update the constant buffer data
 	// (Same for all entities)
 	vsData.view = cameras[activeCamera]->GetView();
 	vsData.projection = cameras[activeCamera]->GetProjection();
+	// Pass totalTime for custom ps
+	psData.totalTime = totalTime;
 
 	// Draw all entities
 	for (auto& entity : entities)
 	{
-		// Rotate each entity a little
-		entity.GetTransform()->Rotate(0, 0, (float)sin(deltaTime * 0.5f));
-
 		std::shared_ptr<Material> material = entity.GetMaterial();
+
 		// Activate the shaders for this material
 		Graphics::Context->VSSetShader(material->GetVertexShader().Get(), 0, 0);
 		Graphics::Context->PSSetShader(material->GetPixelShader().Get(), 0, 0);
