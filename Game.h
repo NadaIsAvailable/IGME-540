@@ -35,8 +35,9 @@ private:
 	float testArrayPtr[2];
 	char textInput[256];
 
-	// Constant Buffer
+	// Constant Buffers
 	VSConstantBuffer vsData{};
+	PSConstantBuffer psData{};
 
 	// Mesh class testing
 	std::vector<std::shared_ptr<Mesh>> meshes;
@@ -50,7 +51,6 @@ private:
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void CreateInputLayout();
-	void CreateGeometry();
 
 	void UpdateImGui(float deltaTime);
 	void BuildUI();
@@ -72,5 +72,6 @@ private:
 
 	// Constant buffers
 	Microsoft::WRL::ComPtr<ID3D11Buffer> vsConstantBuffer;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> psConstantBuffer;
 };
 

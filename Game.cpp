@@ -40,39 +40,47 @@ Game::Game() :
 	std::vector<std::shared_ptr<Material>> materials;
 
 	// Make materials
-	materials.push_back(std::make_shared<Material>("Red tint", XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS));
+	materials.push_back(std::make_shared<Material>("Red tint", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS));
 	materials.push_back(std::make_shared<Material>("Green tint", XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f), basicPS, basicVS));
 	materials.push_back(std::make_shared<Material>("Blue tint", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), basicPS, basicVS));
 
-	// Create meshes
-	CreateGeometry();
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cube.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cylinder.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/helix.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/sphere.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/torus.obj").c_str()));
 
 	// Create some game entities with the meshes and materials we just made
-	for (auto& mesh : meshes) 
+	for (auto& mesh : meshes)
 	{
 		entities.push_back(GameEntity(mesh, materials[0]));
 	}
 
-	// Test mesh shared ptr by creating some entities with the same mesh
-	// and setting different positions for them to see them as separate objects in the scene
-	entities.push_back(GameEntity(meshes[0], materials[1]));
-	entities[entities.size() - 1].GetTransform()->SetPosition(0, 0.5f, 0);
-	entities.push_back(GameEntity(meshes[0], materials[2]));
-	entities[entities.size() - 1].GetTransform()->SetPosition(0, -0.5f, 0);
+	// Spread out the entities
+	int x = -5.0f;
+	for (auto& entity : entities)
+	{
+		entity.GetTransform()->SetPosition(x, 0.0f, 0.0f);
+		x += 3.0f;
+	}
 
 	// Create a few cameras and store in vector
 	cameras.push_back(std::make_shared<Camera>(
 		Window::AspectRatio(), 
-		XMFLOAT3(0, 0, -5))
+		XMFLOAT3(4.0f, 5.5f, -8.0f))
 	);
+	cameras[0]->GetTransform()->SetRotation(0.5f, 0.0f, 0.0f);
+
 	cameras.push_back(std::make_shared<Camera>(
 		Window::AspectRatio(), 
-		XMFLOAT3(0.5f, 0.5f, -2))
+		XMFLOAT3(0.5f, 0.5f, -2.0f))
 	);
 	cameras.push_back(std::make_shared<Camera>(
 		Window::AspectRatio(),
-		XMFLOAT3(-0.5f, -0.5f, -3),
-		XMFLOAT3(0, XM_PIDIV4, 0),
+		XMFLOAT3(-0.5f, -0.5f, -3.0f),
+		XMFLOAT3(0.0f, XM_PIDIV4, 0.0f),
 		XM_PI)
 	);
 
@@ -89,22 +97,27 @@ Game::Game() :
 		//  - In other words, it describes how to interpret data (numbers) in a vertex buffer
 		//  - Doing this NOW because it requires a vertex shader's byte code to verify against!
 		//  - Luckily, we already have that loaded (the vertex shader blob above)
-		D3D11_INPUT_ELEMENT_DESC inputElements[2] = {};
+		D3D11_INPUT_ELEMENT_DESC inputElements[3] = {};
 
 		// Set up the first element - a position, which is 3 float values
 		inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;				// Most formats are described as color channels; really it just means "Three 32-bit floats"
 		inputElements[0].SemanticName = "POSITION";							// This is "POSITION" - needs to match the semantics in our vertex shader input!
 		inputElements[0].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// How far into the vertex is this?  Assume it's after the previous element
 
-		// Set up the second element - a color, which is 4 more float values
-		inputElements[1].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;			// 4x 32-bit floats
-		inputElements[1].SemanticName = "COLOR";							// Match our vertex shader input!
+		// Set up the second element - a UV coordinate, which is 2 float values
+		inputElements[1].Format = DXGI_FORMAT_R32G32_FLOAT;					// 2x 32-bit floats
+		inputElements[1].SemanticName = "TEXCOORD";							// Match our vertex shader input!
 		inputElements[1].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// After the previous element
+
+		// Set up the third element - a normal, which is 3 float values
+		inputElements[2].Format = DXGI_FORMAT_R32G32B32_FLOAT;				// 3x 32-bit floats
+		inputElements[2].SemanticName = "NORMAL";							// Match our vertex shader input!
+		inputElements[2].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// After the previous element
 
 		// Create the input layout, verifying our description against actual shader code
 		Graphics::Device->CreateInputLayout(
 			inputElements,							// An array of descriptions
-			2,										// How many elements in that array?
+			3,										// How many elements in that array?
 			vertexShaderBlob->GetBufferPointer(),	// Pointer to the code of a shader that uses this layout
 			vertexShaderBlob->GetBufferSize(),		// Size of the shader code that uses this layout
 			inputLayout.GetAddressOf());			// Address of the resulting ID3D11InputLayout pointer
@@ -137,17 +150,19 @@ Game::Game() :
 	//ImGui::StyleColorsClassic();
 
 	// Create a constant buffer to send abritary data to the rendering process
+	
+	// Vertex Shader Constant Buffer
 	// Buffer description
-	D3D11_BUFFER_DESC cbd = {};
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cbd.ByteWidth = (sizeof(VSConstantBuffer) + 15) / 16 * 16;
-	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	cbd.MiscFlags = 0;
-	cbd.StructureByteStride = 0;
-	cbd.Usage = D3D11_USAGE_DYNAMIC;
+	D3D11_BUFFER_DESC vscbd = {};
+	vscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	vscbd.ByteWidth = (sizeof(VSConstantBuffer) + 15) / 16 * 16;
+	vscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	vscbd.MiscFlags = 0;
+	vscbd.StructureByteStride = 0;
+	vscbd.Usage = D3D11_USAGE_DYNAMIC;
 
 	// Create the buffer
-	Graphics::Device->CreateBuffer(&cbd, 0, vsConstantBuffer.GetAddressOf());
+	Graphics::Device->CreateBuffer(&vscbd, 0, vsConstantBuffer.GetAddressOf());
 
 	// Bind this constant buffer to the pipeline for
 	// vertex shader at index zero (b0)
@@ -155,10 +170,25 @@ Game::Game() :
 	Graphics::Context->VSSetConstantBuffers(0, 1, vsConstantBuffer.GetAddressOf());
 
 	// Set some initial data for the constant buffer
-	vsData.colorTint = DirectX::XMFLOAT4(0.5f, 0.5f, 0.5f, 1);
-	XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
-	XMStoreFloat4x4(&vsData.view, XMMatrixIdentity());
-	XMStoreFloat4x4(&vsData.projection, XMMatrixIdentity());
+	DirectX::XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
+	DirectX::XMStoreFloat4x4(&vsData.view, XMMatrixIdentity());
+	DirectX::XMStoreFloat4x4(&vsData.projection, XMMatrixIdentity());
+
+	// Pixel Shader Constant Buffer
+	// Buffer description
+	D3D11_BUFFER_DESC pscbd = {};
+	pscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	pscbd.ByteWidth = (sizeof(PSConstantBuffer) + 15) / 16 * 16;
+	pscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	pscbd.MiscFlags = 0;
+	pscbd.StructureByteStride = 0;
+	pscbd.Usage = D3D11_USAGE_DYNAMIC;
+
+	// Create the buffer
+	Graphics::Device->CreateBuffer(&pscbd, 0, psConstantBuffer.GetAddressOf());
+
+	// Bind this constant buffer to the pipeline for
+	Graphics::Context->PSSetConstantBuffers(0, 1, psConstantBuffer.GetAddressOf());
 }
 
 // --------------------------------------------------------
@@ -213,99 +243,6 @@ void Game::CreateInputLayout()
 		vertexShaderBlob->GetBufferSize(),		// Size of the shader code that uses this layout
 		inputLayout.GetAddressOf());			// Address of the resulting ID3D11InputLayout pointer
 	
-}
-
-// --------------------------------------------------------
-// Creates the geometry we're going to draw
-// --------------------------------------------------------
-void Game::CreateGeometry()
-{
-	// Create some temporary variables to represent colors
-	// - Not necessary, just makes things more readable
-	XMFLOAT4 red = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f);
-	XMFLOAT4 green = XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f);
-	XMFLOAT4 blue = XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f);
-
-	// Set up the vertices of the triangle we would like to draw
-	// - We're going to copy this array, exactly as it exists in CPU memory
-	//    over to a Direct3D-controlled data structure on the GPU (the vertex buffer)
-	// - Note: Since we don't have a camera or really any concept of
-	//    a "3d world" yet, we're simply describing positions within the
-	//    bounds of how the rasterizer sees our screen: [-1 to +1] on X and Y
-	// - This means (0,0) is at the very center of the screen.
-	// - These are known as "Normalized Device Coordinates" or "Homogeneous 
-	//    Screen Coords", which are ways to describe a position without
-	//    knowing the exact size (in pixels) of the image/window/etc.  
-	// - Long story short: Resizing the window also resizes the triangle,
-	//    since we're describing the triangle in terms of the window itself
-	Vertex triangleVert[] =
-	{
-		{ XMFLOAT3(-0.70f, +0.20f, +0.0f), red },
-		{ XMFLOAT3(-0.50f, -0.20f, +0.0f), blue },
-		{ XMFLOAT3(-0.90f, -0.20f, +0.0f), green },
-	};
-
-	Vertex squareVert[] =
-	{
-		{ XMFLOAT3(+0.90f, +0.20f, +0.0f), red },
-		{ XMFLOAT3(+0.90f, -0.20f, +0.0f), blue },
-		{ XMFLOAT3(+0.50f, -0.20f, +0.0f), green },
-		{ XMFLOAT3(+0.50f, +0.20f, +0.0f), red },
-	};
-
-	Vertex starVert[] =
-	{
-		// Center
-		{ XMFLOAT3(+0.00f, +0.00f, +0.0f), red },		// 0
-
-		// Top-right
-		{ XMFLOAT3(+0.00f, +0.30f, +0.0f), blue },		// 1 - outer
-		{ XMFLOAT3(+0.05f, +0.09f, +0.0f), green },		// 2 - inner
-
-		// Middle-right
-		{ XMFLOAT3(+0.20f, +0.10f, +0.0f), red },		// 3 - outer
-		{ XMFLOAT3(+0.09f, -0.06f, +0.0f), blue },		// 4 - inner
-
-		// Bottom-right
-		{ XMFLOAT3(+0.12f, -0.30f, +0.0f), green },		// 5 - outer
-		{ XMFLOAT3(+0.00f, -0.12f, +0.0f), red },		// 6 - inner
-
-		// Bottom-left
-		{ XMFLOAT3(-0.12f, -0.30f, +0.0f), blue },		// 7 - outer
-		{ XMFLOAT3(-0.09f, -0.06f, +0.0f), green },		// 8 - inner
-
-		// Middle-left
-		{ XMFLOAT3(-0.20f, +0.10f, +0.0f), red },		// 9 - outer
-		{ XMFLOAT3(-0.05f, +0.09f, +0.0f), blue },		// 10 - inner
-	};
-
-	// Set up indices, which tell us which vertices to use and in which order
-	// - This is redundant for just 3 vertices, but will be more useful later
-	// - Indices are technically not required if the vertices are in the buffer 
-	//    in the correct order and each one will be used exactly once
-	// - But just to see how it's done...
-	unsigned int triangleInd[] = { 0, 1, 2 };
-
-	unsigned int squareInd[] = { 0, 1, 2, 0, 2, 3 };
-
-	unsigned int starInd[] =
-	{
-		0, 1, 2,
-		0, 2, 3,
-		0, 3, 4,
-		0, 4, 5,
-		0, 5, 6,
-		0, 6, 7,
-		0, 7, 8,
-		0, 8, 9,
-		0, 9, 10,
-		0, 10, 1
-	};
-
-	// create a shared ptr for each mesh and add to the meshes vector
-	meshes.push_back(std::make_shared<Mesh>("triangle", triangleVert, 3, triangleInd, 3));
-	meshes.push_back(std::make_shared<Mesh>("square", squareVert, 4, squareInd, 6));
-	meshes.push_back(std::make_shared<Mesh>("star", starVert, 11, starInd, 30));
 }
 
 // --------------------------------------------------------
@@ -388,31 +325,31 @@ void Game::BuildUI()
 	}
 
 	// Assignment 03 - Mesh class
-	if (ImGui::CollapsingHeader("Meshes"))
-	{
-		for (auto& mesh : meshes) 
-		{
-			// header for each mesh
-			std::string header = "Mesh: " + mesh->GetName();
-			if (ImGui::CollapsingHeader(header.c_str()))
-			{
-				// mesh info
-				ImGui::Text("Triangles: %i", mesh->GetIndexCount() / 3);
-				ImGui::Text("Vertices: %i", mesh->GetVertexCount());
-				ImGui::Text("Indices: %i", mesh->GetIndexCount());
-			}
-		}
-	}
+	//if (ImGui::CollapsingHeader("Meshes"))
+	//{
+	//	for (auto& mesh : meshes) 
+	//	{
+	//		// header for each mesh
+	//		std::string header = "Mesh: " + mesh->GetName();
+	//		if (ImGui::CollapsingHeader(header.c_str()))
+	//		{
+	//			// mesh info
+	//			ImGui::Text("Triangles: %i", mesh->GetIndexCount() / 3);
+	//			ImGui::Text("Vertices: %i", mesh->GetVertexCount());
+	//			ImGui::Text("Indices: %i", mesh->GetIndexCount());
+	//		}
+	//	}
+	//}
 
 	// Assignment 04 - Constant Buffer
-	if (ImGui::CollapsingHeader("Constant Buffer")) 
-	{
-		// Color tint editor
-		ImGui::ColorEdit4("Color Tint Editor", &vsData.colorTint.x);
+	//if (ImGui::CollapsingHeader("Constant Buffer")) 
+	//{
+	//	// Color tint editor
+	//	ImGui::ColorEdit4("Color Tint Editor", &vsData.colorTint.x);
 
-		// Offset editor
-		//ImGui::DragFloat3("Offset Editor", &vsData.offset.x, 0.01f);
-	}
+	//	// Offset editor
+	//	ImGui::DragFloat3("Offset Editor", &vsData.offset.x, 0.01f);
+	//}
 
 	// Assignment 05 - Game Entity and Transform
 	if (ImGui::CollapsingHeader("Scene Entities"))
@@ -607,14 +544,24 @@ void Game::Draw(float deltaTime, float totalTime)
 	// Draw all entities
 	for (auto& entity : entities)
 	{
+		// Activate the shaders for this material
+		Graphics::Context->VSSetShader(entity.GetMaterial()->GetVertexShader().Get(), 0, 0);
+		Graphics::Context->PSSetShader(entity.GetMaterial()->GetPixelShader().Get(), 0, 0);
+
 		// Rotate each entity a little
 		entity.GetTransform()->Rotate(0, 0, (float)sin(deltaTime * 0.5f));
 
 		// Get the world matrix for this entity and store it in the constant buffer data
 		vsData.world = entity.GetTransform()->GetWorldMatrix();
 
+		// 
+		psData.colorTint = entity.GetMaterial()->GetColorTint();
+
 		// Map the buffer to get its raw memory address
 		D3D11_MAPPED_SUBRESOURCE map;
+
+		// Vertex Shader Constant Buffer
+		// Map the buffer to get its raw memory address
 		Graphics::Context->Map(vsConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 
 		// Copy the data
@@ -622,6 +569,16 @@ void Game::Draw(float deltaTime, float totalTime)
 
 		// Unmap the buffer
 		Graphics::Context->Unmap(vsConstantBuffer.Get(), 0);
+
+		// Pixel Shader Constant Buffer
+		// Map the buffer to get its raw memory address
+		Graphics::Context->Map(psConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+		// Copy the data
+		memcpy(map.pData, &psData, sizeof(PSConstantBuffer));
+
+		// Unmap the buffer
+		Graphics::Context->Unmap(psConstantBuffer.Get(), 0);
 
 		// Draw the entity
 		entity.Draw();

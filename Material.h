@@ -17,6 +17,7 @@ public:
 	Material(std::string name, DirectX::XMFLOAT4 colorTint, Microsoft::WRL::ComPtr<ID3D11PixelShader> ps, Microsoft::WRL::ComPtr<ID3D11VertexShader> vs);
 
 	// Getters
+	std::string GetName();
 	DirectX::XMFLOAT4 GetColorTint();
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> GetPixelShader();
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> GetVertexShader();

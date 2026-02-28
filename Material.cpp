@@ -12,6 +12,11 @@ Material::Material(
 {
 }
 
+std::string Material::GetName()
+{
+	return name;
+}
+
 DirectX::XMFLOAT4 Material::GetColorTint()
 {
     return colorTint;
