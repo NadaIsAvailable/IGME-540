@@ -50,8 +50,8 @@ private:
 	int activeCamera;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
-	void CreateInputLayout();
-
+	void CreateEntities();
+	void SetUpInputLayoutAndGraphics();
 	void UpdateImGui(float deltaTime);
 	void BuildUI();
 

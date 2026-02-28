@@ -32,12 +32,146 @@ Game::Game() :
 	testArrayPtr(0.5f, 0.5f),
 	textInput("edit this text")
 {
+	// Set ups
+	CreateEntities();
+	SetUpInputLayoutAndGraphics();
+
+	// Create Cameras
+	{
+		// Create a few cameras and store in vector
+		cameras.push_back(std::make_shared<Camera>(
+			Window::AspectRatio(),
+			XMFLOAT3(4.0f, 5.5f, -8.0f))
+		);
+		cameras[0]->GetTransform()->SetRotation(0.5f, 0.0f, 0.0f);
+
+		cameras.push_back(std::make_shared<Camera>(
+			Window::AspectRatio(),
+			XMFLOAT3(0.5f, 0.5f, -2.0f))
+		);
+		cameras.push_back(std::make_shared<Camera>(
+			Window::AspectRatio(),
+			XMFLOAT3(-0.5f, -0.5f, -3.0f),
+			XMFLOAT3(0.0f, XM_PIDIV4, 0.0f),
+			XM_PI)
+		);
+
+		// set first camera as active camera
+		activeCamera = 0;
+	}
+
+	// ImGui set ups
+	{
+		// Initialize ImGui itself & platform/renderer backends
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGui_ImplWin32_Init(Window::Handle());
+		ImGui_ImplDX11_Init(Graphics::Device.Get(), Graphics::Context.Get());
+		// Pick a style (uncomment one of these 3)
+		ImGui::StyleColorsDark();
+		//ImGui::StyleColorsLight();
+		//ImGui::StyleColorsClassic();
+	}
+
+	// Constant buffers
+	{
+		// Create a constant buffer to send abritary data to the rendering process
+		
+		// Vertex Shader Constant Buffer ---------------------------------------------
+		// Buffer description
+		D3D11_BUFFER_DESC vscbd = {};
+		vscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		vscbd.ByteWidth = (sizeof(VSConstantBuffer) + 15) / 16 * 16;
+		vscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		vscbd.MiscFlags = 0;
+		vscbd.StructureByteStride = 0;
+		vscbd.Usage = D3D11_USAGE_DYNAMIC;
+
+		// Create the buffer
+		Graphics::Device->CreateBuffer(&vscbd, 0, vsConstantBuffer.GetAddressOf());
+
+		// Bind this constant buffer to the pipeline for
+		// vertex shader at index zero (b0)
+		//						   starting index, num of buffers, array of data
+		Graphics::Context->VSSetConstantBuffers(0, 1, vsConstantBuffer.GetAddressOf());
+
+		// Set some initial data for the constant buffer
+		DirectX::XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
+		DirectX::XMStoreFloat4x4(&vsData.view, XMMatrixIdentity());
+		DirectX::XMStoreFloat4x4(&vsData.projection, XMMatrixIdentity());
+		// ---------------------------------------------------------------------------
+		
+		// Pixel Shader Constant Buffer ----------------------------------------------
+		// Buffer description
+		D3D11_BUFFER_DESC pscbd = {};
+		pscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		pscbd.ByteWidth = (sizeof(PSConstantBuffer) + 15) / 16 * 16;
+		pscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+		pscbd.MiscFlags = 0;
+		pscbd.StructureByteStride = 0;
+		pscbd.Usage = D3D11_USAGE_DYNAMIC;
+
+		// Create the buffer
+		Graphics::Device->CreateBuffer(&pscbd, 0, psConstantBuffer.GetAddressOf());
+
+		// Bind this constant buffer to the pipeline for
+		Graphics::Context->PSSetConstantBuffers(0, 1, psConstantBuffer.GetAddressOf());
+		// ---------------------------------------------------------------------------
+	}
+}
+
+// --------------------------------------------------------
+// Clean up memory or objects created by this class
+// 
+// Note: Using smart pointers means there probably won't
+//       be much to manually clean up here!
+// --------------------------------------------------------
+Game::~Game()
+{
+	// ImGui clean up
+	ImGui_ImplDX11_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
+}
+
+// --------------------------------------------------------
+// Handle resizing to match the new window size
+//  - Eventually, we'll want to update our 3D camera
+// --------------------------------------------------------
+void Game::OnResize()
+{
+	// update all camera's projection matrices
+	for (auto& camera : cameras)
+	{
+		if (camera) camera->UpdateProjectionMatrix(Window::AspectRatio());
+	}
+}
+
+// --------------------------------------------------------
+// Update your game here - user input, move objects, AI, etc.
+// --------------------------------------------------------
+void Game::Update(float deltaTime, float totalTime)
+{
+	// Example input checking: Quit if the escape key is pressed
+	if (Input::KeyDown(VK_ESCAPE))
+		Window::Quit();
+
+	UpdateImGui(deltaTime);
+	BuildUI();
+
+	cameras[activeCamera]->Update(deltaTime);
+}
+
+// --------------------------------------------------------
+// Create game entities - load shader + create materials + load meshes -> entities
+// --------------------------------------------------------
+void Game::CreateEntities()
+{
+	std::vector<std::shared_ptr<Material>> materials;
+
 	// Load shaders
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> basicVS = LoadVertexShader(L"VertexShader.cso");
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> basicPS = LoadPixelShader(L"PixelShader.cso");
-
-	// Material class testing
-	std::vector<std::shared_ptr<Material>> materials;
 
 	// Make materials
 	materials.push_back(std::make_shared<Material>("Red tint", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS));
@@ -47,16 +181,19 @@ Game::Game() :
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cube.obj").c_str()));
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cylinder.obj").c_str()));
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/helix.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/sphere.obj").c_str()));
 	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/torus.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
 
-	// Create some game entities with the meshes and materials we just made
-	for (auto& mesh : meshes)
-	{
-		entities.push_back(GameEntity(mesh, materials[0]));
-	}
+	// Create game entities with the meshes and materials we just made
+	entities.push_back(GameEntity(meshes[0], materials[0]));
+	entities.push_back(GameEntity(meshes[1], materials[1]));
+	entities.push_back(GameEntity(meshes[2], materials[2]));
+	entities.push_back(GameEntity(meshes[3], materials[0]));
+	entities.push_back(GameEntity(meshes[4], materials[1]));
+	entities.push_back(GameEntity(meshes[5], materials[2]));
+	entities.push_back(GameEntity(meshes[6], materials[0]));
 
 	// Spread out the entities
 	int x = -5.0f;
@@ -65,28 +202,13 @@ Game::Game() :
 		entity.GetTransform()->SetPosition(x, 0.0f, 0.0f);
 		x += 3.0f;
 	}
+}
 
-	// Create a few cameras and store in vector
-	cameras.push_back(std::make_shared<Camera>(
-		Window::AspectRatio(), 
-		XMFLOAT3(4.0f, 5.5f, -8.0f))
-	);
-	cameras[0]->GetTransform()->SetRotation(0.5f, 0.0f, 0.0f);
-
-	cameras.push_back(std::make_shared<Camera>(
-		Window::AspectRatio(), 
-		XMFLOAT3(0.5f, 0.5f, -2.0f))
-	);
-	cameras.push_back(std::make_shared<Camera>(
-		Window::AspectRatio(),
-		XMFLOAT3(-0.5f, -0.5f, -3.0f),
-		XMFLOAT3(0.0f, XM_PIDIV4, 0.0f),
-		XM_PI)
-	);
-
-	// set first camera as active camera
-	activeCamera = 0;
-
+// --------------------------------------------------------
+// Set ups for GPU and D3D stuffs
+// --------------------------------------------------------
+void Game::SetUpInputLayoutAndGraphics()
+{
 	// Create an input layout
 	{
 		ID3DBlob* vertexShaderBlob;
@@ -138,139 +260,6 @@ Game::Game() :
 		// have the same layout, so we can just set this once at startup.
 		Graphics::Context->IASetInputLayout(inputLayout.Get());
 	}
-
-	// Initialize ImGui itself & platform/renderer backends
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGui_ImplWin32_Init(Window::Handle());
-	ImGui_ImplDX11_Init(Graphics::Device.Get(), Graphics::Context.Get());
-	// Pick a style (uncomment one of these 3)
-	ImGui::StyleColorsDark();
-	//ImGui::StyleColorsLight();
-	//ImGui::StyleColorsClassic();
-
-	// Create a constant buffer to send abritary data to the rendering process
-	
-	// Vertex Shader Constant Buffer
-	// Buffer description
-	D3D11_BUFFER_DESC vscbd = {};
-	vscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	vscbd.ByteWidth = (sizeof(VSConstantBuffer) + 15) / 16 * 16;
-	vscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	vscbd.MiscFlags = 0;
-	vscbd.StructureByteStride = 0;
-	vscbd.Usage = D3D11_USAGE_DYNAMIC;
-
-	// Create the buffer
-	Graphics::Device->CreateBuffer(&vscbd, 0, vsConstantBuffer.GetAddressOf());
-
-	// Bind this constant buffer to the pipeline for
-	// vertex shader at index zero (b0)
-	//						   starting index, num of buffers, array of data
-	Graphics::Context->VSSetConstantBuffers(0, 1, vsConstantBuffer.GetAddressOf());
-
-	// Set some initial data for the constant buffer
-	DirectX::XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
-	DirectX::XMStoreFloat4x4(&vsData.view, XMMatrixIdentity());
-	DirectX::XMStoreFloat4x4(&vsData.projection, XMMatrixIdentity());
-
-	// Pixel Shader Constant Buffer
-	// Buffer description
-	D3D11_BUFFER_DESC pscbd = {};
-	pscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	pscbd.ByteWidth = (sizeof(PSConstantBuffer) + 15) / 16 * 16;
-	pscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	pscbd.MiscFlags = 0;
-	pscbd.StructureByteStride = 0;
-	pscbd.Usage = D3D11_USAGE_DYNAMIC;
-
-	// Create the buffer
-	Graphics::Device->CreateBuffer(&pscbd, 0, psConstantBuffer.GetAddressOf());
-
-	// Bind this constant buffer to the pipeline for
-	Graphics::Context->PSSetConstantBuffers(0, 1, psConstantBuffer.GetAddressOf());
-}
-
-// --------------------------------------------------------
-// Clean up memory or objects created by this class
-// 
-// Note: Using smart pointers means there probably won't
-//       be much to manually clean up here!
-// --------------------------------------------------------
-Game::~Game()
-{
-	// ImGui clean up
-	ImGui_ImplDX11_Shutdown();
-	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
-}
-
-// --------------------------------------------------------
-// Loads shaders from compiled shader object (.cso) files
-// and also created the Input Layout that describes our 
-// vertex data to the rendering pipeline. 
-// - Input Layout creation is done here because it must 
-//    be verified against vertex shader byte code
-// - We'll have that byte code already loaded below
-// --------------------------------------------------------
-void Game::CreateInputLayout()
-{
-	ID3DBlob* vertexShaderBlob;
-	D3DReadFileToBlob(FixPath(L"VertexShader.cso").c_str(), &vertexShaderBlob);
-
-	// Create an input layout 
-	//  - This describes the layout of data sent to a vertex shader
-	//  - In other words, it describes how to interpret data (numbers) in a vertex buffer
-	//  - Doing this NOW because it requires a vertex shader's byte code to verify against!
-	//  - Luckily, we already have that loaded (the vertex shader blob above)
-	D3D11_INPUT_ELEMENT_DESC inputElements[2] = {};
-
-	// Set up the first element - a position, which is 3 float values
-	inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;				// Most formats are described as color channels; really it just means "Three 32-bit floats"
-	inputElements[0].SemanticName = "POSITION";							// This is "POSITION" - needs to match the semantics in our vertex shader input!
-	inputElements[0].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// How far into the vertex is this?  Assume it's after the previous element
-
-	// Set up the second element - a color, which is 4 more float values
-	inputElements[1].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;			// 4x 32-bit floats
-	inputElements[1].SemanticName = "COLOR";							// Match our vertex shader input!
-	inputElements[1].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// After the previous element
-
-	// Create the input layout, verifying our description against actual shader code
-	Graphics::Device->CreateInputLayout(
-		inputElements,							// An array of descriptions
-		2,										// How many elements in that array?
-		vertexShaderBlob->GetBufferPointer(),	// Pointer to the code of a shader that uses this layout
-		vertexShaderBlob->GetBufferSize(),		// Size of the shader code that uses this layout
-		inputLayout.GetAddressOf());			// Address of the resulting ID3D11InputLayout pointer
-	
-}
-
-// --------------------------------------------------------
-// Handle resizing to match the new window size
-//  - Eventually, we'll want to update our 3D camera
-// --------------------------------------------------------
-void Game::OnResize()
-{
-	// update all camera's projection matrices
-	for (auto& camera : cameras)
-	{
-		if (camera) camera->UpdateProjectionMatrix(Window::AspectRatio());
-	}
-}
-
-// --------------------------------------------------------
-// Update your game here - user input, move objects, AI, etc.
-// --------------------------------------------------------
-void Game::Update(float deltaTime, float totalTime)
-{
-	// Example input checking: Quit if the escape key is pressed
-	if (Input::KeyDown(VK_ESCAPE))
-		Window::Quit();
-
-	UpdateImGui(deltaTime);
-	BuildUI();
-
-	cameras[activeCamera]->Update(deltaTime);
 }
 
 // --------------------------------------------------------
@@ -325,31 +314,35 @@ void Game::BuildUI()
 	}
 
 	// Assignment 03 - Mesh class
-	//if (ImGui::CollapsingHeader("Meshes"))
-	//{
-	//	for (auto& mesh : meshes) 
-	//	{
-	//		// header for each mesh
-	//		std::string header = "Mesh: " + mesh->GetName();
-	//		if (ImGui::CollapsingHeader(header.c_str()))
-	//		{
-	//			// mesh info
-	//			ImGui::Text("Triangles: %i", mesh->GetIndexCount() / 3);
-	//			ImGui::Text("Vertices: %i", mesh->GetVertexCount());
-	//			ImGui::Text("Indices: %i", mesh->GetIndexCount());
-	//		}
-	//	}
-	//}
+	/*
+	if (ImGui::CollapsingHeader("Meshes"))
+	{
+		for (auto& mesh : meshes) 
+		{
+			// header for each mesh
+			std::string header = "Mesh: " + mesh->GetName();
+			if (ImGui::CollapsingHeader(header.c_str()))
+			{
+				// mesh info
+				ImGui::Text("Triangles: %i", mesh->GetIndexCount() / 3);
+				ImGui::Text("Vertices: %i", mesh->GetVertexCount());
+				ImGui::Text("Indices: %i", mesh->GetIndexCount());
+			}
+		}
+	}
+	*/
 
 	// Assignment 04 - Constant Buffer
-	//if (ImGui::CollapsingHeader("Constant Buffer")) 
-	//{
-	//	// Color tint editor
-	//	ImGui::ColorEdit4("Color Tint Editor", &vsData.colorTint.x);
+	/*
+	if (ImGui::CollapsingHeader("Constant Buffer")) 
+	{
+		// Color tint editor
+		ImGui::ColorEdit4("Color Tint Editor", &vsData.colorTint.x);
 
-	//	// Offset editor
-	//	ImGui::DragFloat3("Offset Editor", &vsData.offset.x, 0.01f);
-	//}
+		// Offset editor
+		ImGui::DragFloat3("Offset Editor", &vsData.offset.x, 0.01f);
+	}
+	*/
 
 	// Assignment 05 - Game Entity and Transform
 	if (ImGui::CollapsingHeader("Scene Entities"))
@@ -508,34 +501,6 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
-	// DRAW geometry
-	// - These steps are generally repeated for EACH object you draw
-	// - Other Direct3D calls will also be necessary to do more complex things
-	/*
-	{
-		// Set buffers in the input assembler (IA) stage
-		//  - Do this ONCE PER OBJECT, since each object may have different geometry
-		//  - For this demo, this step *could* simply be done once during Init()
-		//  - However, this needs to be done between EACH DrawIndexed() call
-		//     when drawing different geometry, so it's here as an example
-		UINT stride = sizeof(Vertex);
-		UINT offset = 0;
-		Graphics::Context->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), &stride, &offset);
-		Graphics::Context->IASetIndexBuffer(indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-
-		// Tell Direct3D to draw
-		//  - Begins the rendering pipeline on the GPU
-		//  - Do this ONCE PER OBJECT you intend to draw
-		//  - This will use all currently set Direct3D resources (shaders, buffers, etc)
-		//  - DrawIndexed() uses the currently set INDEX BUFFER to look up corresponding
-		//     vertices in the currently set VERTEX BUFFER
-		Graphics::Context->DrawIndexed(
-			3,     // The number of indices to use (we could draw a subset if we wanted)
-			0,     // Offset to the first index we want to use
-			0);    // Offset to add to each index when looking up vertices
-	}
-	*/
-
 	// Update the view and projection matrices in the constant buffer data
 	// (Same for all entities)
 	vsData.view = cameras[activeCamera]->GetView();
@@ -544,23 +509,24 @@ void Game::Draw(float deltaTime, float totalTime)
 	// Draw all entities
 	for (auto& entity : entities)
 	{
-		// Activate the shaders for this material
-		Graphics::Context->VSSetShader(entity.GetMaterial()->GetVertexShader().Get(), 0, 0);
-		Graphics::Context->PSSetShader(entity.GetMaterial()->GetPixelShader().Get(), 0, 0);
-
 		// Rotate each entity a little
 		entity.GetTransform()->Rotate(0, 0, (float)sin(deltaTime * 0.5f));
 
+		std::shared_ptr<Material> material = entity.GetMaterial();
+		// Activate the shaders for this material
+		Graphics::Context->VSSetShader(material->GetVertexShader().Get(), 0, 0);
+		Graphics::Context->PSSetShader(material->GetPixelShader().Get(), 0, 0);
+
+		// Update constant buffers
 		// Get the world matrix for this entity and store it in the constant buffer data
 		vsData.world = entity.GetTransform()->GetWorldMatrix();
-
-		// 
-		psData.colorTint = entity.GetMaterial()->GetColorTint();
+		// Get the color tint of this entity's material
+		psData.colorTint = material->GetColorTint();
 
 		// Map the buffer to get its raw memory address
 		D3D11_MAPPED_SUBRESOURCE map;
 
-		// Vertex Shader Constant Buffer
+		// Vertex Shader Constant Buffer --------------------------------------
 		// Map the buffer to get its raw memory address
 		Graphics::Context->Map(vsConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 
@@ -569,8 +535,9 @@ void Game::Draw(float deltaTime, float totalTime)
 
 		// Unmap the buffer
 		Graphics::Context->Unmap(vsConstantBuffer.Get(), 0);
-
-		// Pixel Shader Constant Buffer
+		// --------------------------------------------------------------------
+		
+		// Pixel Shader Constant Buffer ---------------------------------------
 		// Map the buffer to get its raw memory address
 		Graphics::Context->Map(psConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
 
@@ -579,6 +546,7 @@ void Game::Draw(float deltaTime, float totalTime)
 
 		// Unmap the buffer
 		Graphics::Context->Unmap(psConstantBuffer.Get(), 0);
+		// --------------------------------------------------------------------
 
 		// Draw the entity
 		entity.Draw();

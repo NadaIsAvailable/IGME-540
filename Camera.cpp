@@ -167,13 +167,13 @@ void Camera::UpdateProjectionMatrix(float aspectRatio)
 void Camera::Update(float dt)
 {
 	// Foward and backward
-	if (Input::KeyDown('W')) transform->MoveAbsolute(0, 0, movementSpeed * dt);
-	if (Input::KeyDown('S')) transform->MoveAbsolute(0, 0, -movementSpeed * dt);
+	if (Input::KeyDown('W')) transform->MoveRelative(0, 0, movementSpeed * dt);
+	if (Input::KeyDown('S')) transform->MoveRelative(0, 0, -movementSpeed * dt);
 	// Left and right
-	if (Input::KeyDown('A')) transform->MoveAbsolute(-movementSpeed * dt, 0, 0);
-	if (Input::KeyDown('D')) transform->MoveAbsolute(movementSpeed * dt, 0, 0);
+	if (Input::KeyDown('A')) transform->MoveRelative(-movementSpeed * dt, 0, 0);
+	if (Input::KeyDown('D')) transform->MoveRelative(movementSpeed * dt, 0, 0);
 	// Up and down (world)
-	if (Input::KeyDown('Q')) transform->MoveRelative(0, movementSpeed * dt, 0);
+	if (Input::KeyDown('Q')) transform->MoveAbsolute(0, movementSpeed * dt, 0);
 	if (Input::KeyDown('E')) transform->MoveAbsolute(0, -movementSpeed * dt, 0);
 
 	// Detect if left mouse btn is down
