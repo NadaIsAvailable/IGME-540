@@ -10,6 +10,7 @@
 #include "BufferStructs.h"
 #include "GameEntity.h"
 #include "Camera.h"
+#include "Material.h"
 
 class Game
 {
@@ -34,8 +35,9 @@ private:
 	float testArrayPtr[2];
 	char textInput[256];
 
-	// Constant Buffer
+	// Constant Buffers
 	VSConstantBuffer vsData{};
+	PSConstantBuffer psData{};
 
 	// Mesh class testing
 	std::vector<std::shared_ptr<Mesh>> meshes;
@@ -48,11 +50,13 @@ private:
 	int activeCamera;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
-	void LoadShaders();
-	void CreateGeometry();
+	void CreateInputLayout();
 
 	void UpdateImGui(float deltaTime);
 	void BuildUI();
+
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> LoadPixelShader(std::wstring filePath);
+	Microsoft::WRL::ComPtr<ID3D11VertexShader> LoadVertexShader(std::wstring filePath);
 
 	// Note the usage of ComPtr below
 	//  - This is a smart pointer for objects that abide by the
@@ -64,11 +68,10 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11Buffer> indexBuffer;
 
 	// Shaders and shader-related constructs
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
-	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout;
 
 	// Constant buffers
 	Microsoft::WRL::ComPtr<ID3D11Buffer> vsConstantBuffer;
+	Microsoft::WRL::ComPtr<ID3D11Buffer> psConstantBuffer;
 };
 
