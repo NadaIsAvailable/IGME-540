@@ -1,4 +1,5 @@
 #include "Transform.h"
+#include "Material.h"
 
 using namespace DirectX;
 

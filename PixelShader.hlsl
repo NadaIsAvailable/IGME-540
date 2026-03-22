@@ -2,7 +2,13 @@ cbuffer ExternalData : register(b0)
 {
     float4 colorTint;
     float totalTime;
+    float3 intensities;
+    float2 scale;
+    float2 offset;
 }
+
+Texture2D SurfaceTexture : register(t0); // "t" registers for textures
+SamplerState BasicSampler : register(s0); // "s" registers for samplers
 
 // Struct representing the data we expect to receive from earlier pipeline stages
 // - Should match the output of our corresponding vertex shader
@@ -32,9 +38,12 @@ struct VertexToPixel
 // --------------------------------------------------------
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	// Just return the input color
-	// - This color (like most values passing through the rasterizer) is 
-	//   interpolated for each pixel between the corresponding vertices 
-	//   of the triangle we're rendering
-	return colorTint;
+	// Scale and offset the uv
+    input.uv = input.uv * scale + offset;
+	
+	// Sampling from the surface texture to get a color
+    float4 surfaceColor = SurfaceTexture.Sample(BasicSampler, input.uv);
+	
+	// Apply color tint
+    return surfaceColor * colorTint;
 }

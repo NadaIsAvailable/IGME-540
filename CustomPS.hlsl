@@ -3,6 +3,8 @@ cbuffer ExternalData : register(b0)
     float4 colorTint;
     float totalTime;
     float3 intensities;
+    float2 scale;
+    float2 offset;
 }
 
 // Struct representing the data we expect to receive from earlier pipeline stages

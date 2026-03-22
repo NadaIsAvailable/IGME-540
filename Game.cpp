@@ -8,6 +8,9 @@
 #include <string>
 #include <DirectXMath.h>
 
+// Needed for loading textures
+#include <WICTextureLoader.h>
+
 // Needed for a helper function to load pre-compiled shader files
 #pragma comment(lib, "d3dcompiler.lib")
 #include <d3dcompiler.h>
@@ -77,53 +80,17 @@ Game::Game() :
 		//ImGui::StyleColorsClassic();
 	}
 
-	// Constant buffers
+	// Buffer initial data
 	{
-		// Create a constant buffer to send abritary data to the rendering process
-		
-		// Vertex Shader Constant Buffer ---------------------------------------------
-		// Buffer description
-		D3D11_BUFFER_DESC vscbd = {};
-		vscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		vscbd.ByteWidth = (sizeof(VSConstantBuffer) + 15) / 16 * 16;
-		vscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		vscbd.MiscFlags = 0;
-		vscbd.StructureByteStride = 0;
-		vscbd.Usage = D3D11_USAGE_DYNAMIC;
-
-		// Create the buffer
-		Graphics::Device->CreateBuffer(&vscbd, 0, vsConstantBuffer.GetAddressOf());
-
-		// Bind this constant buffer to the pipeline for
-		// vertex shader at index zero (b0)
-		//						   starting index, num of buffers, array of data
-		Graphics::Context->VSSetConstantBuffers(0, 1, vsConstantBuffer.GetAddressOf());
-
-		// Set some initial data for the constant buffer
+		// Set some initial data for the vs constant buffer
 		DirectX::XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
 		DirectX::XMStoreFloat4x4(&vsData.view, XMMatrixIdentity());
 		DirectX::XMStoreFloat4x4(&vsData.projection, XMMatrixIdentity());
-		// ---------------------------------------------------------------------------
-		
-		// Pixel Shader Constant Buffer ----------------------------------------------
-		// Buffer description
-		D3D11_BUFFER_DESC pscbd = {};
-		pscbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-		pscbd.ByteWidth = (sizeof(PSConstantBuffer) + 15) / 16 * 16;
-		pscbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-		pscbd.MiscFlags = 0;
-		pscbd.StructureByteStride = 0;
-		pscbd.Usage = D3D11_USAGE_DYNAMIC;
 
-		// Create the buffer
-		Graphics::Device->CreateBuffer(&pscbd, 0, psConstantBuffer.GetAddressOf());
-
-		// Bind this constant buffer to the pipeline for
-		Graphics::Context->PSSetConstantBuffers(0, 1, psConstantBuffer.GetAddressOf());
-
-		// Set some initial data for the constant buffer
+		// Set some initial data for the ps constant buffer
 		DirectX::XMStoreFloat3(&psData.intensities, XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f));
-		// ---------------------------------------------------------------------------
+		DirectX::XMStoreFloat2(&psData.scale, XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f));
+		DirectX::XMStoreFloat2(&psData.offset, XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f));
 	}
 }
 
@@ -165,23 +132,79 @@ void Game::CreateEntities()
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> uvPS = LoadPixelShader(L"DebugUVsPS.cso");
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> normalPS = LoadPixelShader(L"DebugNormalsPS.cso");
 	Microsoft::WRL::ComPtr<ID3D11PixelShader> customPS = LoadPixelShader(L"CustomPS.cso");
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> combinePS = LoadPixelShader(L"CombineTexPS.cso");
+
+	// Sampler
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler;
+
+	// Sampler description
+	D3D11_SAMPLER_DESC sd = {};
+	sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.Filter = D3D11_FILTER_ANISOTROPIC;
+	sd.MaxAnisotropy = 16;
+	sd.MaxLOD = D3D11_FLOAT32_MAX;
+
+	// Create the sampler
+	Graphics::Device->CreateSamplerState(&sd, sampler.GetAddressOf());
+
+	// Texture shader resource views
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> coastSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roofSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> linesSRV;
+
+	// Load textures
+	CreateWICTextureFromFile(
+		Graphics::Device.Get(), 
+		Graphics::Context.Get(), 
+		FixPath(L"../../Assets/Textures/coast_sand_rocks_diff.png").c_str(), 
+		0, 
+		coastSRV.GetAddressOf());
+	CreateWICTextureFromFile(
+		Graphics::Device.Get(), 
+		Graphics::Context.Get(), 
+		FixPath(L"../../Assets/Textures/clay_roof_tiles_diff.png").c_str(), 
+		0, 
+		roofSRV.GetAddressOf());
+	CreateWICTextureFromFile(
+		Graphics::Device.Get(),
+		Graphics::Context.Get(),
+		FixPath(L"../../Assets/Textures/road_lines.png").c_str(),
+		0,
+		linesSRV.GetAddressOf());
 
 	// Make materials
+	// Set textures and sampler for each material
 	std::shared_ptr<Material> redTint = std::make_shared<Material>("Red tint", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS);
+	redTint->AddTextureSRV(0, coastSRV);
+	redTint->AddSampler(0, sampler);
+
 	std::shared_ptr<Material> greenTint = std::make_shared<Material>("Green tint", XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f), basicPS, basicVS);
+	greenTint->AddTextureSRV(0, roofSRV);
+	greenTint->AddSampler(0, sampler);
+
 	std::shared_ptr<Material> blueTint = std::make_shared<Material>("Blue tint", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), basicPS, basicVS);
+	blueTint->AddTextureSRV(0, coastSRV);
+	blueTint->AddSampler(0, sampler);
+
+	std::shared_ptr<Material> coastLinedTint = std::make_shared<Material>("Coast Lined tint", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), combinePS, basicVS);
+	coastLinedTint->AddTextureSRV(0, coastSRV);
+	coastLinedTint->AddTextureSRV(1, linesSRV);
+	coastLinedTint->AddSampler(0, sampler);
+
 	std::shared_ptr<Material> uv = std::make_shared<Material>("UV", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), uvPS, basicVS);
 	std::shared_ptr<Material> normal = std::make_shared<Material>("Normal", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), normalPS, basicVS);
 	std::shared_ptr<Material> custom = std::make_shared<Material>("Custom", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), customPS, basicVS);
 
 	// Make meshes from the .obj files
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cube.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/cylinder.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/helix.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/sphere.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/torus.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad.obj").c_str()));
-	meshes.push_back(std::make_shared<Mesh>(FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>("Cube", FixPath("../../Assets/Meshes/cube.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>("Cylinder" ,FixPath("../../Assets/Meshes/cylinder.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>("Helix" ,FixPath("../../Assets/Meshes/helix.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>("Sphere" ,FixPath("../../Assets/Meshes/sphere.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>("Torus" ,FixPath("../../Assets/Meshes/torus.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>("Quad" ,FixPath("../../Assets/Meshes/quad.obj").c_str()));
+	meshes.push_back(std::make_shared<Mesh>("Quad (Double-Sided)" ,FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
 
 	// Create game entities with the meshes and materials we just made
 	for (auto& m : meshes)
@@ -199,13 +222,14 @@ void Game::CreateEntities()
 		entities.push_back(GameEntity(m, custom));
 	}
 
-	entities.push_back(GameEntity(meshes[0], redTint));
-	entities.push_back(GameEntity(meshes[1], greenTint));
-	entities.push_back(GameEntity(meshes[2], blueTint));
-	entities.push_back(GameEntity(meshes[3], redTint));
-	entities.push_back(GameEntity(meshes[4], greenTint));
-	entities.push_back(GameEntity(meshes[5], blueTint));
-	entities.push_back(GameEntity(meshes[6], redTint));
+	entities.push_back(GameEntity(meshes[0], coastLinedTint));
+	entities.push_back(GameEntity(meshes[1], coastLinedTint));
+	entities.push_back(GameEntity(meshes[2], coastLinedTint));
+	entities.push_back(GameEntity(meshes[3], coastLinedTint));
+
+	entities.push_back(GameEntity(meshes[4], redTint));
+	entities.push_back(GameEntity(meshes[5], greenTint));
+	entities.push_back(GameEntity(meshes[6], blueTint));
 
 	// Spread out the entities
 	float x = -5.0f;
@@ -365,7 +389,7 @@ void Game::BuildUI()
 	}
 	*/
 
-	// Assignment 05 - Game Entity and Transform
+	// Game Entities
 	if (ImGui::CollapsingHeader("Scene Entities"))
 	{
 		ImGui::Checkbox("Rotate about X", &rotateX);
@@ -376,11 +400,52 @@ void Game::BuildUI()
 		{
 			// header for each mesh
 			std::string header = "Entity " + std::to_string(i) +
-				'(' + entities[i].GetMesh()->GetName() + ')';
+				" (" + entities[i].GetMesh()->GetName() + ')';
 			if (ImGui::CollapsingHeader(header.c_str()))
 			{
 				ImGui::PushID(i);
 
+				// Get material of this entity
+				std::shared_ptr<Material> material = entities[i].GetMaterial();
+
+				// Display material name
+				std::string matName = "Material Name: " + material->GetName();
+				ImGui::Text(matName.c_str());
+
+				// Display srvs in a table (4 in a row)
+				if (ImGui::BeginTable("Textures for Entity " + i, 4))
+				{
+					int idx = 0;
+					for (auto& tex : material->GetTextureSRVMap())
+					{
+						if (idx % 4 == 0)
+							ImGui::TableNextRow();
+
+						ImGui::TableSetColumnIndex(idx % 4);
+
+						ImGui::Text("Texture %i", tex.first + 1);
+						ImGui::Image(tex.second.Get(), ImVec2(128, 128));
+
+						idx++;
+					}
+					ImGui::EndTable();
+				}
+
+				// Material control options -----------------------------------
+				XMFLOAT4 colorTint = material->GetColorTint();
+				ImGui::SliderFloat4("Color Tint", &colorTint.x, 0.0f, 1.0f);
+				material->SetColorTint(colorTint);
+
+				XMFLOAT2 matScale = material->GetScale();
+				ImGui::SliderFloat2("Material Scale", &matScale.x, 0.0f, 5.0f);
+				material->SetScale(matScale);
+
+				XMFLOAT2 matOffset = material->GetOffset();
+				ImGui::SliderFloat2("Material Offset", &matOffset.x, -5.0f, 5.0f);
+				material->SetOffset(matOffset);
+				// ------------------------------------------------------------
+				
+				// Transform control options ----------------------------------
 				XMFLOAT3 pos = entities[i].GetTransform()->GetPosition();
 				ImGui::DragFloat3("Position", &pos.x, 0.01f);
 				entities[i].GetTransform()->SetPosition(pos);
@@ -392,13 +457,14 @@ void Game::BuildUI()
 				XMFLOAT3 scale = entities[i].GetTransform()->GetScale();
 				ImGui::DragFloat3("Scale", &scale.x, 0.01f);
 				entities[i].GetTransform()->SetScale(scale);
+				// ------------------------------------------------------------
 
 				ImGui::PopID();
 			}
 		}
 	}
 
-	// Assignment 06 - Camera
+	// Camera
 	if (ImGui::CollapsingHeader("Cameras"))
 	{
 		// Select active camera------------------------------------------------
@@ -457,7 +523,7 @@ void Game::BuildUI()
 		}
 	}
 
-	// Assignment 06 - 3D Models, Materials & Shaders
+	// Custom Shader Controls
 	if (ImGui::CollapsingHeader("Custom Shader"))
 	{
 		XMFLOAT3 intensity = psData.intensities;
@@ -570,6 +636,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	// (Same for all entities)
 	vsData.view = cameras[activeCamera]->GetView();
 	vsData.projection = cameras[activeCamera]->GetProjection();
+
 	// Pass totalTime for custom ps
 	psData.totalTime = totalTime;
 
@@ -577,6 +644,13 @@ void Game::Draw(float deltaTime, float totalTime)
 	for (auto& entity : entities)
 	{
 		std::shared_ptr<Material> material = entity.GetMaterial();
+
+		// Pass material's scale and offset to ps
+		psData.scale = material->GetScale();
+		psData.offset = material->GetOffset();
+		
+		// Bind textures and samplers
+		material->BindTexturesAndSamplers();
 
 		// Activate the shaders for this material
 		Graphics::Context->VSSetShader(material->GetVertexShader().Get(), 0, 0);
@@ -588,30 +662,19 @@ void Game::Draw(float deltaTime, float totalTime)
 		// Get the color tint of this entity's material
 		psData.colorTint = material->GetColorTint();
 
-		// Map the buffer to get its raw memory address
-		D3D11_MAPPED_SUBRESOURCE map;
-
-		// Vertex Shader Constant Buffer --------------------------------------
-		// Map the buffer to get its raw memory address
-		Graphics::Context->Map(vsConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		// Copy the data
-		memcpy(map.pData, &vsData, sizeof(VSConstantBuffer));
-
-		// Unmap the buffer
-		Graphics::Context->Unmap(vsConstantBuffer.Get(), 0);
-		// --------------------------------------------------------------------
+		// Fill and bind Vertex Shader Constant Buffer
+		Graphics::FillAndBindNextConstantBuffer(
+			&vsData,
+			sizeof(VSConstantBuffer),
+			D3D11_VERTEX_SHADER,
+			0);
 		
-		// Pixel Shader Constant Buffer ---------------------------------------
-		// Map the buffer to get its raw memory address
-		Graphics::Context->Map(psConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-		// Copy the data
-		memcpy(map.pData, &psData, sizeof(PSConstantBuffer));
-
-		// Unmap the buffer
-		Graphics::Context->Unmap(psConstantBuffer.Get(), 0);
-		// --------------------------------------------------------------------
+		// Fill and Pixel Shader Constant Buffer
+		Graphics::FillAndBindNextConstantBuffer(
+			&psData,
+			sizeof(PSConstantBuffer),
+			D3D11_PIXEL_SHADER,
+			0);
 
 		// Draw the entity
 		entity.Draw();

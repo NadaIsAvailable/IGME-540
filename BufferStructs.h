@@ -14,4 +14,6 @@ struct PSConstantBuffer
 	DirectX::XMFLOAT4 colorTint;
 	float totalTime;
 	DirectX::XMFLOAT3 intensities;
+	DirectX::XMFLOAT2 scale;
+	DirectX::XMFLOAT2 offset;
 };

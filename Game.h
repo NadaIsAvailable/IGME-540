@@ -75,9 +75,5 @@ private:
 
 	// Shaders and shader-related constructs
 	Microsoft::WRL::ComPtr<ID3D11InputLayout> inputLayout;
-
-	// Constant buffers
-	Microsoft::WRL::ComPtr<ID3D11Buffer> vsConstantBuffer;
-	Microsoft::WRL::ComPtr<ID3D11Buffer> psConstantBuffer;
 };
 
