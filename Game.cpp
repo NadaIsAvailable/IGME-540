@@ -35,8 +35,9 @@ Game::Game() :
 	testArrayPtr(0.5f, 0.5f),
 	textInput("edit this text"),
 	rotateX(false),
-	rotateY(true),
-	rotateZ(true)
+	rotateY(false),
+	rotateZ(false),
+	ambientColor(0.1f, 0.1f, 0.25f)
 {
 	// Set ups
 	CreateEntities();
@@ -47,9 +48,9 @@ Game::Game() :
 		// Create a few cameras and store in vector
 		cameras.push_back(std::make_shared<Camera>(
 			Window::AspectRatio(),
-			XMFLOAT3(7.0f, 6.0f, -9.0f),
-			XMFLOAT3(0.5f, 0.0f, 0.0f),
-			3.0f)
+			XMFLOAT3(7.0f, 6.0f, -10.0f),
+			XMFLOAT3(0.0f, 0.0f, 0.0f),
+			10.0f)
 		);
 
 		cameras.push_back(std::make_shared<Camera>(
@@ -82,15 +83,20 @@ Game::Game() :
 
 	// Buffer initial data
 	{
+		vsData = {};
 		// Set some initial data for the vs constant buffer
 		DirectX::XMStoreFloat4x4(&vsData.world, XMMatrixIdentity());
+		DirectX::XMStoreFloat4x4(&vsData.worldInvTranspose, XMMatrixIdentity());
 		DirectX::XMStoreFloat4x4(&vsData.view, XMMatrixIdentity());
 		DirectX::XMStoreFloat4x4(&vsData.projection, XMMatrixIdentity());
 
+		psData = {};
 		// Set some initial data for the ps constant buffer
-		DirectX::XMStoreFloat3(&psData.intensities, XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f));
-		DirectX::XMStoreFloat2(&psData.scale, XMVectorSet(1.0f, 1.0f, 1.0f, 1.0f));
-		DirectX::XMStoreFloat2(&psData.offset, XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f));
+		psData.intensities = XMFLOAT3(1.0f, 1.0f, 1.0f);
+		psData.scale = XMFLOAT2(1.0f, 1.0f);
+		psData.offset = XMFLOAT2(0.0f, 0.0f);
+		psData.cameraPos = XMFLOAT3(0.0f, 0.0f, 0.0f);
+		psData.ambientColor = ambientColor;
 	}
 }
 
@@ -176,6 +182,10 @@ void Game::CreateEntities()
 
 	// Make materials
 	// Set textures and sampler for each material
+	std::shared_ptr<Material> coast = std::make_shared<Material>("Coast Texture", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	coast->AddTextureSRV(0, coastSRV);
+	coast->AddSampler(0, sampler);
+
 	std::shared_ptr<Material> redTint = std::make_shared<Material>("Red tint", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS);
 	redTint->AddTextureSRV(0, coastSRV);
 	redTint->AddSampler(0, sampler);
@@ -207,38 +217,38 @@ void Game::CreateEntities()
 	meshes.push_back(std::make_shared<Mesh>("Quad (Double-Sided)" ,FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
 
 	// Create game entities with the meshes and materials we just made
-	for (auto& m : meshes)
-	{
-		entities.push_back(GameEntity(m, normal));
-	}
+	//for (auto& m : meshes)
+	//{
+	//	entities.push_back(GameEntity(m, normal));
+	//}
+	//
+	//for (auto& m : meshes)
+	//{
+	//	entities.push_back(GameEntity(m, uv));
+	//}
+	//
+	//for (auto& m : meshes)
+	//{
+	//	entities.push_back(GameEntity(m, custom));
+	//}
 
 	for (auto& m : meshes)
 	{
-		entities.push_back(GameEntity(m, uv));
+		entities.push_back(GameEntity(m, coast));
 	}
-
-	for (auto& m : meshes)
-	{
-		entities.push_back(GameEntity(m, custom));
-	}
-
-	entities.push_back(GameEntity(meshes[0], coastLinedTint));
-	entities.push_back(GameEntity(meshes[1], coastLinedTint));
-	entities.push_back(GameEntity(meshes[2], coastLinedTint));
-	entities.push_back(GameEntity(meshes[3], coastLinedTint));
-
-	entities.push_back(GameEntity(meshes[4], redTint));
-	entities.push_back(GameEntity(meshes[5], greenTint));
-	entities.push_back(GameEntity(meshes[6], blueTint));
 
 	// Spread out the entities
 	float x = -5.0f;
 	float y = 4.0f;
 	int i = 0;
-	for (uint r = 0; r < 4; r++)
+	int meshPerRow = 7;
+	int rows = (int)std::ceil((float)meshes.size() / meshPerRow);
+	for (int r = 0; r < rows; r++)
 	{
-		for (uint c = 0; c < 7; c++)
+		for (int c = 0; c < meshPerRow; c++)
 		{
+			if (i >= meshes.size()) break;
+
 			entities[i].GetTransform()->SetPosition(x, y, 0.0f);
 
 			x += 4.0f;
@@ -247,6 +257,61 @@ void Game::CreateEntities()
 		x = -5.0f;
 		y -= 4.0f;
 	}
+
+	// Lights
+	Light dirLight1 = {};
+	dirLight1.Type = LIGHT_TYPE_DIRECTIONAL;
+	dirLight1.Direction = XMFLOAT3(1.0f, 0.0f, 0.0f);
+	dirLight1.Color = XMFLOAT3(1.f, 0.0f, 0.0f);
+	dirLight1.Intensity = 1.0f;
+	lights.push_back(dirLight1);
+
+	Light dirLight2 = {};
+	dirLight2.Type = LIGHT_TYPE_DIRECTIONAL;
+	dirLight2.Direction = XMFLOAT3(0.0f, 1.0f, 0.0f);
+	dirLight2.Color = XMFLOAT3(0.f, 1.0f, 0.0f);
+	dirLight2.Intensity = 1.0f;
+	lights.push_back(dirLight2);
+
+	Light dirLight3 = {};
+	dirLight3.Type = LIGHT_TYPE_DIRECTIONAL;
+	dirLight3.Direction = XMFLOAT3(0.0f, 0.0f, 1.0f);
+	dirLight3.Color = XMFLOAT3(0.f, 0.0f, 1.0f);
+	dirLight3.Intensity = 1.0f;
+	lights.push_back(dirLight3);
+
+	Light dirLight4 = {};
+	dirLight4.Type = LIGHT_TYPE_DIRECTIONAL;
+	dirLight4.Direction = XMFLOAT3(1.0f, 1.0f, 0.0f);
+	dirLight4.Color = XMFLOAT3(1.f, 1.0f, 0.0f);
+	dirLight4.Intensity = 1.0f;
+	lights.push_back(dirLight4);
+
+	Light dirLight5 = {};
+	dirLight5.Type = LIGHT_TYPE_DIRECTIONAL;
+	dirLight5.Direction = XMFLOAT3(0.0f, 1.0f, 1.0f);
+	dirLight5.Color = XMFLOAT3(0.f, 1.0f, 1.0f);
+	dirLight5.Intensity = 1.0f;
+	lights.push_back(dirLight5);
+
+	Light pointLight1 = {};
+	pointLight1.Type = LIGHT_TYPE_POINT;
+	pointLight1.Position = XMFLOAT3(3.0f, 4.0f, 0.0f);
+	pointLight1.Color = XMFLOAT3(1.0f, 1.0f, 1.0f);
+	pointLight1.Range = 8.0f;
+	pointLight1.Intensity = 2.0f;
+	lights.push_back(pointLight1);
+
+	Light spotLight1 = {};
+	spotLight1.Type = LIGHT_TYPE_SPOT;
+	spotLight1.Direction = XMFLOAT3(0.0f, -1.0f, 0.0f);
+	spotLight1.Position = XMFLOAT3(15.0f, 10.0f, 0.0f);
+	spotLight1.Color = XMFLOAT3(1.f, 0.0f, 1.0f);
+	spotLight1.Range = 10.0f;
+	spotLight1.SpotInnerAngle = XM_PI / 64.0f;
+	spotLight1.SpotOuterAngle = XM_PI / 32.0f;
+	spotLight1.Intensity = 2.0f;
+	lights.push_back(spotLight1);
 }
 
 // --------------------------------------------------------
@@ -398,7 +463,7 @@ void Game::BuildUI()
 
 		for (uint i = 0; i < entities.size(); i++)
 		{
-			// header for each mesh
+			// header for each entity
 			std::string header = "Entity " + std::to_string(i) +
 				" (" + entities[i].GetMesh()->GetName() + ')';
 			if (ImGui::CollapsingHeader(header.c_str()))
@@ -433,30 +498,30 @@ void Game::BuildUI()
 
 				// Material control options -----------------------------------
 				XMFLOAT4 colorTint = material->GetColorTint();
-				ImGui::SliderFloat4("Color Tint", &colorTint.x, 0.0f, 1.0f);
-				material->SetColorTint(colorTint);
+				if(ImGui::SliderFloat4("Color Tint", &colorTint.x, 0.0f, 1.0f)) 
+					material->SetColorTint(colorTint);
 
 				XMFLOAT2 matScale = material->GetScale();
-				ImGui::SliderFloat2("Material Scale", &matScale.x, 0.0f, 5.0f);
-				material->SetScale(matScale);
+				if(ImGui::SliderFloat2("Material Scale", &matScale.x, 0.0f, 5.0f)) 
+					material->SetScale(matScale);
 
 				XMFLOAT2 matOffset = material->GetOffset();
-				ImGui::SliderFloat2("Material Offset", &matOffset.x, -5.0f, 5.0f);
-				material->SetOffset(matOffset);
+				if (ImGui::SliderFloat2("Material Offset", &matOffset.x, -5.0f, 5.0f)) 
+					material->SetOffset(matOffset);
 				// ------------------------------------------------------------
 				
 				// Transform control options ----------------------------------
 				XMFLOAT3 pos = entities[i].GetTransform()->GetPosition();
-				ImGui::DragFloat3("Position", &pos.x, 0.01f);
-				entities[i].GetTransform()->SetPosition(pos);
+				if(ImGui::DragFloat3("Position", &pos.x, 0.01f))
+					entities[i].GetTransform()->SetPosition(pos);
 
 				XMFLOAT3 rot = entities[i].GetTransform()->GetPitchYawRoll();
-				ImGui::DragFloat3("Rotation (Radians)", &rot.x, 0.01f);
-				entities[i].GetTransform()->SetRotation(rot);
+				if(ImGui::DragFloat3("Rotation (Radians)", &rot.x, 0.01f))
+					entities[i].GetTransform()->SetRotation(rot);
 
 				XMFLOAT3 scale = entities[i].GetTransform()->GetScale();
-				ImGui::DragFloat3("Scale", &scale.x, 0.01f);
-				entities[i].GetTransform()->SetScale(scale);
+				if(ImGui::DragFloat3("Scale", &scale.x, 0.01f))
+					entities[i].GetTransform()->SetScale(scale);
 				// ------------------------------------------------------------
 
 				ImGui::PopID();
@@ -477,7 +542,7 @@ void Game::BuildUI()
 		// Camera transform toggles -------------------------------------------
 		for (uint i = 0; i < cameras.size(); i++)
 		{
-			// header for each mesh
+			// header for each camera
 			std::string header = "Camera " + std::to_string(i);
 			if (ImGui::CollapsingHeader(header.c_str()))
 			{
@@ -485,38 +550,38 @@ void Game::BuildUI()
 
 				// Position
 				XMFLOAT3 pos = cameras[i]->GetTransform()->GetPosition();
-				ImGui::DragFloat3("Position", &pos.x, 0.01f);
-				cameras[i]->GetTransform()->SetPosition(pos);
+				if (ImGui::DragFloat3("Position", &pos.x, 0.01f))
+					cameras[i]->GetTransform()->SetPosition(pos);
 
 				// Rotation
 				XMFLOAT3 rot = cameras[i]->GetTransform()->GetPitchYawRoll();
-				ImGui::DragFloat3("Rotation (Radians)", &rot.x, 0.01f);
-				cameras[i]->GetTransform()->SetRotation(rot);
+				if (ImGui::DragFloat3("Rotation (Radians)", &rot.x, 0.01f))
+					cameras[i]->GetTransform()->SetRotation(rot);
 
 				// FOV
 				float fov = cameras[i]->GetFov();
-				ImGui::DragFloat("Field of View (Radians)", &fov, 0.01f, 0.01f, XM_PI);
-				cameras[i]->SetFov(fov);
+				if (ImGui::DragFloat("Field of View (Radians)", &fov, 0.01f, 0.01f, XM_PI))
+					cameras[i]->SetFov(fov);
 
 				// Near plane
 				float nearPlane = cameras[i]->GetNearPlane();
-				ImGui::DragFloat("Near Plane", &nearPlane, 0.01f, 0.01f, cameras[i]->GetFarPlane());
-				cameras[i]->SetNearPlane(nearPlane);
+				if (ImGui::DragFloat("Near Plane", &nearPlane, 0.01f, 0.01f, cameras[i]->GetFarPlane()))
+					cameras[i]->SetNearPlane(nearPlane);
 
 				// Far plane
 				float farPlane = cameras[i]->GetFarPlane();
-				ImGui::DragFloat("Far Plane", &farPlane, 1.0f, cameras[i]->GetNearPlane(), 1000.0f);
-				cameras[i]->SetFarPlane(farPlane);
+				if (ImGui::DragFloat("Far Plane", &farPlane, 1.0f, cameras[i]->GetNearPlane(), 1000.0f))
+					cameras[i]->SetFarPlane(farPlane);
 
 				// Movement speed
 				float movementSpeed = cameras[i]->GetMovementSpeed();
-				ImGui::DragFloat("Movement Speed", &movementSpeed, 0.01f, 0.01f, 10.0f);
-				cameras[i]->SetMovementSpeed(movementSpeed);
+				if (ImGui::DragFloat("Movement Speed", &movementSpeed, 0.01f, 0.01f, 20.0f))
+					cameras[i]->SetMovementSpeed(movementSpeed);
 
 				// Look speed
 				float lookSpeed = cameras[i]->GetLookSpeed();
-				ImGui::DragFloat("Look Speed", &lookSpeed, 0.001f, 0.001f, 0.05f);
-				cameras[i]->SetLookSpeed(lookSpeed);
+				if (ImGui::DragFloat("Look Speed", &lookSpeed, 0.001f, 0.001f, 0.05f))
+					cameras[i]->SetLookSpeed(lookSpeed);
 
 				ImGui::PopID();
 			}
@@ -527,8 +592,77 @@ void Game::BuildUI()
 	if (ImGui::CollapsingHeader("Custom Shader"))
 	{
 		XMFLOAT3 intensity = psData.intensities;
-		ImGui::SliderFloat3("RGB Intensities", &intensity.x, 0.0f, 1.0f);
-		DirectX::XMStoreFloat3(&psData.intensities, XMLoadFloat3(&intensity));
+		if (ImGui::SliderFloat3("RGB Intensities", &intensity.x, 0.0f, 1.0f))
+			DirectX::XMStoreFloat3(&psData.intensities, XMLoadFloat3(&intensity));
+	}
+
+	// Lighting
+	if (ImGui::CollapsingHeader("Lights"))
+	{
+		ImGui::ColorEdit3("Ambient Color", &ambientColor.x);
+
+		for (uint i = 0; i < lights.size(); i++)
+		{
+			Light& light = lights[i];
+
+			// header for each light
+			std::string type = "";
+
+			if (light.Type == LIGHT_TYPE_DIRECTIONAL) type = "Directional";
+			else if (light.Type == LIGHT_TYPE_POINT) type = "Point";
+			else if (light.Type == LIGHT_TYPE_SPOT) type = "Spot";
+
+			std::string header = "Light " + std::to_string(i) + " (" + type + ')';
+
+			if (ImGui::CollapsingHeader(header.c_str()))
+			{
+				ImGui::PushID(i);
+
+				// Light Type
+				if (ImGui::RadioButton("Directional", light.Type == LIGHT_TYPE_DIRECTIONAL))
+					light.Type = LIGHT_TYPE_DIRECTIONAL;
+
+				if (ImGui::RadioButton("Point", light.Type == LIGHT_TYPE_POINT))
+					light.Type = LIGHT_TYPE_POINT;
+
+				if (ImGui::RadioButton("Spot", light.Type == LIGHT_TYPE_SPOT))
+					light.Type = LIGHT_TYPE_SPOT;
+
+				// Light intensity
+				ImGui::SliderFloat("Intensity", &light.Intensity, 0.0f, 10.0f);
+
+				// Light color
+				ImGui::ColorEdit4("Color", &light.Color.x);
+
+				// Directional and spot lights
+				if (light.Type == LIGHT_TYPE_DIRECTIONAL || light.Type == LIGHT_TYPE_SPOT)
+				{
+					// Direction
+					if (ImGui::DragFloat3("Direction", &light.Direction.x, 0.1f)) 
+						XMStoreFloat3(&light.Direction, XMVector3Normalize(XMLoadFloat3(&light.Direction)));
+				}
+				 
+				// Point and spot lights
+				if (light.Type == LIGHT_TYPE_POINT || light.Type == LIGHT_TYPE_SPOT) 
+				{
+					// Position
+					ImGui::DragFloat3("Position", &light.Position.x, 0.1f);
+
+					// Range
+					ImGui::SliderFloat("Range", &light.Range, 0.0f, 20.0f);
+				}
+
+				// Spot lights only
+				if (light.Type == LIGHT_TYPE_SPOT)
+				{
+					// Inner and outer angles
+					ImGui::SliderFloat("Spot Inner Angle", &light.SpotInnerAngle, 0.0f, light.SpotOuterAngle - 0.001f);
+					ImGui::SliderFloat("Spot Outer Angle", &light.SpotOuterAngle, light.SpotInnerAngle + 0.001f, XM_PI);
+				}
+
+				ImGui::PopID();
+			}
+		}
 	}
 
 	// End custom ui window
@@ -632,13 +766,14 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
-	// Update the constant buffer data
-	// (Same for all entities)
+	// Update the constant buffer data (same for all entities)
 	vsData.view = cameras[activeCamera]->GetView();
 	vsData.projection = cameras[activeCamera]->GetProjection();
-
-	// Pass totalTime for custom ps
 	psData.totalTime = totalTime;
+	psData.cameraPos = cameras[activeCamera]->GetTransform()->GetPosition();
+	psData.ambientColor = ambientColor;
+	memcpy(&psData.lights, &lights[0], sizeof(Light) * (int)lights.size());
+	psData.lightCount = (int)lights.size();
 
 	// Draw all entities
 	for (auto& entity : entities)
@@ -656,9 +791,10 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->VSSetShader(material->GetVertexShader().Get(), 0, 0);
 		Graphics::Context->PSSetShader(material->GetPixelShader().Get(), 0, 0);
 
-		// Update constant buffers
-		// Get the world matrix for this entity and store it in the constant buffer data
+		// Update constant buffers (entity specific)
+		// Get matrices for this entity and store it in the constant buffer data
 		vsData.world = entity.GetTransform()->GetWorldMatrix();
+		vsData.worldInvTranspose = entity.GetTransform()->GetWorldInverseTransposeMatrix();
 		// Get the color tint of this entity's material
 		psData.colorTint = material->GetColorTint();
 

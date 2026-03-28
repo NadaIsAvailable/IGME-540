@@ -11,6 +11,7 @@
 #include "GameEntity.h"
 #include "Camera.h"
 #include "Material.h"
+#include "Lights.h"
 
 class Game
 {
@@ -44,6 +45,10 @@ private:
 	// Constant Buffers
 	VSConstantBuffer vsData{};
 	PSConstantBuffer psData{};
+
+	// Lighting
+	DirectX::XMFLOAT3 ambientColor;
+	std::vector<Light> lights;
 
 	// Mesh class testing
 	std::vector<std::shared_ptr<Mesh>> meshes;

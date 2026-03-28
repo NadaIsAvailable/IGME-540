@@ -1,3 +1,8 @@
+#include "ShaderStructsIncludes.hlsli"
+#include "ShaderLightingIncludes.hlsli"
+
+#define MAX_LIGHTS 128
+
 cbuffer ExternalData : register(b0)
 {
     float4 colorTint;
@@ -5,24 +10,13 @@ cbuffer ExternalData : register(b0)
     float3 intensities;
     float2 scale;
     float2 offset;
+    float3 cameraPos;
+    float padding1;
+    float3 ambientColor;
+    float padding2;
+    Light lights[MAX_LIGHTS];
+    int lightCount;
 }
-
-// Struct representing the data we expect to receive from earlier pipeline stages
-// - Should match the output of our corresponding vertex shader
-// - The name of the struct itself is unimportant
-// - The variable names don't have to match other shaders (just the semantics)
-// - Each variable must have a semantic, which defines its usage
-struct VertexToPixel
-{
-	// Data type
-	//  |
-	//  |   Name          Semantic
-	//  |    |                |
-	//  v    v                v
-    float4 screenPosition : SV_POSITION;
-    float2 uv : TEXCOORD;
-    float3 normal : NORMAL;
-};
 
 // --------------------------------------------------------
 // The entry point (main method) for our pixel shader
