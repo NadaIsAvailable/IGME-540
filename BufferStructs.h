@@ -32,3 +32,9 @@ struct PSConstantBuffer
 	Light lights[MAX_LIGHTS];
 	int lightCount;
 };
+
+struct SkyVSConstantBuffer
+{
+	DirectX::XMFLOAT4X4 view;
+	DirectX::XMFLOAT4X4 projection;
+};

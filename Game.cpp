@@ -133,12 +133,12 @@ void Game::OnResize()
 void Game::CreateEntities()
 {
 	// Load shaders
-	Microsoft::WRL::ComPtr<ID3D11VertexShader> basicVS = LoadVertexShader(L"VertexShader.cso");
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> basicPS = LoadPixelShader(L"PixelShader.cso");
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> uvPS = LoadPixelShader(L"DebugUVsPS.cso");
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> normalPS = LoadPixelShader(L"DebugNormalsPS.cso");
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> customPS = LoadPixelShader(L"CustomPS.cso");
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> combinePS = LoadPixelShader(L"CombineTexPS.cso");
+	Microsoft::WRL::ComPtr<ID3D11VertexShader> basicVS = Graphics::LoadVertexShader(L"VertexShader.cso");
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> basicPS = Graphics::LoadPixelShader(L"PixelShader.cso");
+	// Microsoft::WRL::ComPtr<ID3D11PixelShader> uvPS = LoadPixelShader(L"DebugUVsPS.cso");
+	// Microsoft::WRL::ComPtr<ID3D11PixelShader> normalPS = LoadPixelShader(L"DebugNormalsPS.cso");
+	// Microsoft::WRL::ComPtr<ID3D11PixelShader> customPS = LoadPixelShader(L"CustomPS.cso");
+	// Microsoft::WRL::ComPtr<ID3D11PixelShader> combinePS = LoadPixelShader(L"CombineTexPS.cso");
 
 	// Sampler
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler;
@@ -157,8 +157,9 @@ void Game::CreateEntities()
 
 	// Texture shader resource views
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> coastSRV;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roofSRV;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> linesSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> coastNormalSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> pebblesSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> pebblesNormalSRV;
 
 	// Load textures
 	CreateWICTextureFromFile(
@@ -168,44 +169,35 @@ void Game::CreateEntities()
 		0, 
 		coastSRV.GetAddressOf());
 	CreateWICTextureFromFile(
+		Graphics::Device.Get(),
+		Graphics::Context.Get(),
+		FixPath(L"../../Assets/Textures/coast_sand_rocks_normal.png").c_str(),
+		0,
+		coastNormalSRV.GetAddressOf());
+	CreateWICTextureFromFile(
 		Graphics::Device.Get(), 
 		Graphics::Context.Get(), 
-		FixPath(L"../../Assets/Textures/clay_roof_tiles_diff.png").c_str(), 
+		FixPath(L"../../Assets/Textures/pebbles_diff.png").c_str(), 
 		0, 
-		roofSRV.GetAddressOf());
+		pebblesSRV.GetAddressOf());
 	CreateWICTextureFromFile(
 		Graphics::Device.Get(),
 		Graphics::Context.Get(),
-		FixPath(L"../../Assets/Textures/road_lines.png").c_str(),
+		FixPath(L"../../Assets/Textures/pebbles_normal.png").c_str(),
 		0,
-		linesSRV.GetAddressOf());
+		pebblesNormalSRV.GetAddressOf());
 
 	// Make materials
 	// Set textures and sampler for each material
 	std::shared_ptr<Material> coast = std::make_shared<Material>("Coast Texture", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
 	coast->AddTextureSRV(0, coastSRV);
+	coast->AddTextureSRV(1, coastNormalSRV);
 	coast->AddSampler(0, sampler);
 
-	std::shared_ptr<Material> redTint = std::make_shared<Material>("Red tint", XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f), basicPS, basicVS);
-	redTint->AddTextureSRV(0, coastSRV);
-	redTint->AddSampler(0, sampler);
-
-	std::shared_ptr<Material> greenTint = std::make_shared<Material>("Green tint", XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f), basicPS, basicVS);
-	greenTint->AddTextureSRV(0, roofSRV);
-	greenTint->AddSampler(0, sampler);
-
-	std::shared_ptr<Material> blueTint = std::make_shared<Material>("Blue tint", XMFLOAT4(0.0f, 0.0f, 1.0f, 1.0f), basicPS, basicVS);
-	blueTint->AddTextureSRV(0, coastSRV);
-	blueTint->AddSampler(0, sampler);
-
-	std::shared_ptr<Material> coastLinedTint = std::make_shared<Material>("Coast Lined tint", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), combinePS, basicVS);
-	coastLinedTint->AddTextureSRV(0, coastSRV);
-	coastLinedTint->AddTextureSRV(1, linesSRV);
-	coastLinedTint->AddSampler(0, sampler);
-
-	std::shared_ptr<Material> uv = std::make_shared<Material>("UV", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), uvPS, basicVS);
-	std::shared_ptr<Material> normal = std::make_shared<Material>("Normal", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), normalPS, basicVS);
-	std::shared_ptr<Material> custom = std::make_shared<Material>("Custom", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), customPS, basicVS);
+	std::shared_ptr<Material> pebbles = std::make_shared<Material>("Pebbles Texture", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	pebbles->AddTextureSRV(0, pebblesSRV);
+	pebbles->AddTextureSRV(1, pebblesNormalSRV);
+	pebbles->AddSampler(0, sampler);
 
 	// Make meshes from the .obj files
 	meshes.push_back(std::make_shared<Mesh>("Cube", FixPath("../../Assets/Meshes/cube.obj").c_str()));
@@ -216,26 +208,14 @@ void Game::CreateEntities()
 	meshes.push_back(std::make_shared<Mesh>("Quad" ,FixPath("../../Assets/Meshes/quad.obj").c_str()));
 	meshes.push_back(std::make_shared<Mesh>("Quad (Double-Sided)" ,FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
 
-	// Create game entities with the meshes and materials we just made
-	//for (auto& m : meshes)
-	//{
-	//	entities.push_back(GameEntity(m, normal));
-	//}
-	//
-	//for (auto& m : meshes)
-	//{
-	//	entities.push_back(GameEntity(m, uv));
-	//}
-	//
-	//for (auto& m : meshes)
-	//{
-	//	entities.push_back(GameEntity(m, custom));
-	//}
-
-	for (auto& m : meshes)
-	{
-		entities.push_back(GameEntity(m, coast));
-	}
+	// Make entities from the meshes and materials
+	entities.push_back(GameEntity(meshes[0], coast));
+	entities.push_back(GameEntity(meshes[1], coast));
+	entities.push_back(GameEntity(meshes[2], coast));
+	entities.push_back(GameEntity(meshes[3], pebbles));
+	entities.push_back(GameEntity(meshes[4], pebbles));
+	entities.push_back(GameEntity(meshes[5], pebbles));
+	entities.push_back(GameEntity(meshes[6], pebbles));
 
 	// Spread out the entities
 	float x = -5.0f;
@@ -263,35 +243,35 @@ void Game::CreateEntities()
 	dirLight1.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight1.Direction = XMFLOAT3(1.0f, 0.0f, 0.0f);
 	dirLight1.Color = XMFLOAT3(1.f, 0.0f, 0.0f);
-	dirLight1.Intensity = 1.0f;
+	dirLight1.Intensity = 0.5f;
 	lights.push_back(dirLight1);
 
 	Light dirLight2 = {};
 	dirLight2.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight2.Direction = XMFLOAT3(0.0f, 1.0f, 0.0f);
 	dirLight2.Color = XMFLOAT3(0.f, 1.0f, 0.0f);
-	dirLight2.Intensity = 1.0f;
+	dirLight2.Intensity = 0.5f;
 	lights.push_back(dirLight2);
 
 	Light dirLight3 = {};
 	dirLight3.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight3.Direction = XMFLOAT3(0.0f, 0.0f, 1.0f);
 	dirLight3.Color = XMFLOAT3(0.f, 0.0f, 1.0f);
-	dirLight3.Intensity = 1.0f;
+	dirLight3.Intensity = 0.5f;
 	lights.push_back(dirLight3);
 
 	Light dirLight4 = {};
 	dirLight4.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight4.Direction = XMFLOAT3(1.0f, 1.0f, 0.0f);
 	dirLight4.Color = XMFLOAT3(1.f, 1.0f, 0.0f);
-	dirLight4.Intensity = 1.0f;
+	dirLight4.Intensity = 0.5f;
 	lights.push_back(dirLight4);
 
 	Light dirLight5 = {};
 	dirLight5.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight5.Direction = XMFLOAT3(0.0f, 1.0f, 1.0f);
 	dirLight5.Color = XMFLOAT3(0.f, 1.0f, 1.0f);
-	dirLight5.Intensity = 1.0f;
+	dirLight5.Intensity = 0.5f;
 	lights.push_back(dirLight5);
 
 	Light pointLight1 = {};
@@ -299,7 +279,7 @@ void Game::CreateEntities()
 	pointLight1.Position = XMFLOAT3(3.0f, 4.0f, 0.0f);
 	pointLight1.Color = XMFLOAT3(1.0f, 1.0f, 1.0f);
 	pointLight1.Range = 8.0f;
-	pointLight1.Intensity = 2.0f;
+	pointLight1.Intensity = 1.0f;
 	lights.push_back(pointLight1);
 
 	Light spotLight1 = {};
@@ -312,6 +292,20 @@ void Game::CreateEntities()
 	spotLight1.SpotOuterAngle = XM_PI / 32.0f;
 	spotLight1.Intensity = 2.0f;
 	lights.push_back(spotLight1);
+
+	// Sky 
+	sky = std::make_shared<Sky>(
+		sampler,
+		meshes[0], // cube
+		L"SkyVS.cso",
+		L"SkyPS.cso",
+		FixPath(L"../../Assets/Textures/sky/right.png").c_str(),
+		FixPath(L"../../Assets/Textures/sky/left.png").c_str(),
+		FixPath(L"../../Assets/Textures/sky/up.png").c_str(),
+		FixPath(L"../../Assets/Textures/sky/down.png").c_str(),
+		FixPath(L"../../Assets/Textures/sky/front.png").c_str(),
+		FixPath(L"../../Assets/Textures/sky/back.png").c_str()
+	);
 }
 
 // --------------------------------------------------------
@@ -329,7 +323,7 @@ void Game::SetUpInputLayoutAndGraphics()
 		//  - In other words, it describes how to interpret data (numbers) in a vertex buffer
 		//  - Doing this NOW because it requires a vertex shader's byte code to verify against!
 		//  - Luckily, we already have that loaded (the vertex shader blob above)
-		D3D11_INPUT_ELEMENT_DESC inputElements[3] = {};
+		D3D11_INPUT_ELEMENT_DESC inputElements[4] = {};
 
 		// Set up the first element - a position, which is 3 float values
 		inputElements[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;				// Most formats are described as color channels; really it just means "Three 32-bit floats"
@@ -346,10 +340,15 @@ void Game::SetUpInputLayoutAndGraphics()
 		inputElements[2].SemanticName = "NORMAL";							// Match our vertex shader input!
 		inputElements[2].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;	// After the previous element
 
+		// Set up the fourth element - a tangent, which is 3 more float values
+		inputElements[3].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+		inputElements[3].SemanticName = "TANGENT";
+		inputElements[3].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+
 		// Create the input layout, verifying our description against actual shader code
 		Graphics::Device->CreateInputLayout(
 			inputElements,							// An array of descriptions
-			3,										// How many elements in that array?
+			4,										// How many elements in that array?
 			vertexShaderBlob->GetBufferPointer(),	// Pointer to the code of a shader that uses this layout
 			vertexShaderBlob->GetBufferSize(),		// Size of the shader code that uses this layout
 			inputLayout.GetAddressOf());			// Address of the resulting ID3D11InputLayout pointer
@@ -670,60 +669,6 @@ void Game::BuildUI()
 }
 
 // --------------------------------------------------------
-// Shader loaders
-// --------------------------------------------------------
-Microsoft::WRL::ComPtr<ID3D11PixelShader> Game::LoadPixelShader(std::wstring filePath)
-{
-	// BLOBs (or Binary Large OBjects) for reading raw data from external files
-	// - This is a simplified way of handling big chunks of external data
-	// - Literally just a big array of bytes read from a file
-	ID3DBlob* pixelShaderBlob;
-
-	// Temporary variable to hold the resulting shader
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
-
-	// Loading shaders
-	//  - Visual Studio will compile our shaders at build time
-	//  - They are saved as .cso (Compiled Shader Object) files
-	//  - We need to load them when the application starts
-
-	// Read our compiled shader code files into blobs
-	// - Essentially just "open the file and plop its contents here"
-	// - Uses the custom FixPath() helper from Helpers.h to ensure relative paths
-	D3DReadFileToBlob(FixPath(filePath).c_str(), &pixelShaderBlob);
-
-	// Create the actual Direct3D shaders on the GPU
-	Graphics::Device->CreatePixelShader(
-		pixelShaderBlob->GetBufferPointer(),	// Pointer to blob's contents
-		pixelShaderBlob->GetBufferSize(),		// How big is that data?
-		0,										// No classes in this shader
-		pixelShader.GetAddressOf());			// Address of the ID3D11PixelShader pointer
-
-	return pixelShader;
-}
-
-Microsoft::WRL::ComPtr<ID3D11VertexShader> Game::LoadVertexShader(std::wstring filePath)
-{
-	// Used to store raw data from external files in blob
-	ID3DBlob* vertexShaderBlob;
-
-	// Temporary variable to hold the resulting shader
-	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
-
-	// Read the compiled shader code file into a blob
-	D3DReadFileToBlob(FixPath(filePath).c_str(), &vertexShaderBlob);
-
-	// Create the actual Direct3D vertex shader on the GPU
-	Graphics::Device->CreateVertexShader(
-		vertexShaderBlob->GetBufferPointer(),	// Get a pointer to the blob's contents
-		vertexShaderBlob->GetBufferSize(),		// How big is that data?
-		0,										// No classes in this shader
-		vertexShader.GetAddressOf());			// The address of the ID3D11VertexShader pointer
-
-	return vertexShader;
-}
-
-// --------------------------------------------------------
 // Update your game here - user input, move objects, AI, etc.
 // --------------------------------------------------------
 void Game::Update(float deltaTime, float totalTime)
@@ -805,7 +750,7 @@ void Game::Draw(float deltaTime, float totalTime)
 			D3D11_VERTEX_SHADER,
 			0);
 		
-		// Fill and Pixel Shader Constant Buffer
+		// Fill and bind Pixel Shader Constant Buffer
 		Graphics::FillAndBindNextConstantBuffer(
 			&psData,
 			sizeof(PSConstantBuffer),
@@ -815,6 +760,9 @@ void Game::Draw(float deltaTime, float totalTime)
 		// Draw the entity
 		entity.Draw();
 	}
+
+	// draw the sky
+	sky->Draw(cameras[activeCamera]);
 
 	ImGui::Render(); // Turns this frame’s UI into renderable triangles
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen

@@ -62,8 +62,14 @@ float3 DirLight(Light light, float3 normal, float3 toCamera, float3 surfaceColor
     float diffuse = Diffuse(normal, toLight);
     float specular = Specular(toCamera, -toLight, normal, 24);
     
+    // Cut the specular if the diffuse contribution is zero
+    // - any() returns 1 if any component of the param is non-zero
+    specular *= any(diffuse);
+    
     // Combine each light calculation for the final lighting
-    return (surfaceColor * (diffuse + specular)) * light.Color * light.Intensity;
+    // (surfaceColor * diffuse + specular) * ... -> not applying surfaceColor to reflection
+    // (diffuse + specular) * ... * surfaceColor -> applying surfaceColor to reflection
+    return (surfaceColor * diffuse + specular) * light.Color * light.Intensity;
 
 }
 
@@ -79,9 +85,15 @@ float3 PointLight(Light light, float3 normal, float3 worldPosition, float3 toCam
     // Lighting calculation
     float diffuse = Diffuse(normal, toLight);
     float specular = Specular(toCamera, -toLight, normal, 24);
+    
+    // Cut the specular if the diffuse contribution is zero
+    // - any() returns 1 if any component of the param is non-zero
+    specular *= any(diffuse);
 
     // Combine each light calculation for the final lighting
-    return (surfaceColor * (diffuse + specular)) * attenuate * light.Color * light.Intensity;
+    // (surfaceColor * diffuse + specular) * ... -> not applying surfaceColor to reflection
+    // (diffuse + specular) * ... * surfaceColor -> applying surfaceColor to reflection
+    return (surfaceColor * diffuse + specular) * attenuate * light.Color * light.Intensity;
 }
 
 // Calculates total light for a spot light

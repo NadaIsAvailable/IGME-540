@@ -12,6 +12,7 @@
 #include "Camera.h"
 #include "Material.h"
 #include "Lights.h"
+#include "Sky.h"
 
 class Game
 {
@@ -46,6 +47,9 @@ private:
 	VSConstantBuffer vsData{};
 	PSConstantBuffer psData{};
 
+	// Sky
+	std::shared_ptr<Sky> sky;
+
 	// Lighting
 	DirectX::XMFLOAT3 ambientColor;
 	std::vector<Light> lights;
@@ -65,9 +69,6 @@ private:
 	void SetUpInputLayoutAndGraphics();
 	void UpdateImGui(float deltaTime);
 	void BuildUI();
-
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> LoadPixelShader(std::wstring filePath);
-	Microsoft::WRL::ComPtr<ID3D11VertexShader> LoadVertexShader(std::wstring filePath);
 
 	// Note the usage of ComPtr below
 	//  - This is a smart pointer for objects that abide by the

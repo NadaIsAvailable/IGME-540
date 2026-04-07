@@ -1,6 +1,12 @@
 #include "Graphics.h"
 #include <dxgi1_6.h>
 
+// Needed for a helper function to load pre-compiled shader files
+#pragma comment(lib, "d3dcompiler.lib")
+#include <d3dcompiler.h>
+
+#include "PathHelpers.h"
+
 // Tell the drivers to use high-performance GPU in multi-GPU systems (like laptops)
 extern "C"
 {
@@ -291,6 +297,60 @@ void Graphics::ResizeBuffers(unsigned int width, unsigned int height)
 
 	// Are we in a fullscreen state?
 	SwapChain->GetFullscreenState(&isFullscreen, 0);
+}
+
+// --------------------------------------------------------
+// Shader loaders
+// --------------------------------------------------------
+Microsoft::WRL::ComPtr<ID3D11PixelShader> Graphics::LoadPixelShader(std::wstring filePath)
+{
+	// BLOBs (or Binary Large OBjects) for reading raw data from external files
+	// - This is a simplified way of handling big chunks of external data
+	// - Literally just a big array of bytes read from a file
+	ID3DBlob* pixelShaderBlob;
+
+	// Temporary variable to hold the resulting shader
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> pixelShader;
+
+	// Loading shaders
+	//  - Visual Studio will compile our shaders at build time
+	//  - They are saved as .cso (Compiled Shader Object) files
+	//  - We need to load them when the application starts
+
+	// Read our compiled shader code files into blobs
+	// - Essentially just "open the file and plop its contents here"
+	// - Uses the custom FixPath() helper from Helpers.h to ensure relative paths
+	D3DReadFileToBlob(FixPath(filePath).c_str(), &pixelShaderBlob);
+
+	// Create the actual Direct3D shaders on the GPU
+	Graphics::Device->CreatePixelShader(
+		pixelShaderBlob->GetBufferPointer(),	// Pointer to blob's contents
+		pixelShaderBlob->GetBufferSize(),		// How big is that data?
+		0,										// No classes in this shader
+		pixelShader.GetAddressOf());			// Address of the ID3D11PixelShader pointer
+
+	return pixelShader;
+}
+
+Microsoft::WRL::ComPtr<ID3D11VertexShader> Graphics::LoadVertexShader(std::wstring filePath)
+{
+	// Used to store raw data from external files in blob
+	ID3DBlob* vertexShaderBlob;
+
+	// Temporary variable to hold the resulting shader
+	Microsoft::WRL::ComPtr<ID3D11VertexShader> vertexShader;
+
+	// Read the compiled shader code file into a blob
+	D3DReadFileToBlob(FixPath(filePath).c_str(), &vertexShaderBlob);
+
+	// Create the actual Direct3D vertex shader on the GPU
+	Graphics::Device->CreateVertexShader(
+		vertexShaderBlob->GetBufferPointer(),	// Get a pointer to the blob's contents
+		vertexShaderBlob->GetBufferSize(),		// How big is that data?
+		0,										// No classes in this shader
+		vertexShader.GetAddressOf());			// The address of the ID3D11VertexShader pointer
+
+	return vertexShader;
 }
 
 // --------------------------------------------------------

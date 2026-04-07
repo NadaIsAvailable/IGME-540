@@ -33,6 +33,7 @@ public:
 
 	// Helper methods
 	void CreateBuffers(Vertex* vertices, uint* indices);
+	void CalculateTangents(Vertex* verts, int numVerts, unsigned int* indices, int numIndices);
 
 	void Draw();
 };

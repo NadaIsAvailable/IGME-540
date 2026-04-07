@@ -19,6 +19,7 @@ cbuffer ExternalData : register(b0)
 }
 
 Texture2D SurfaceTexture : register(t0);    // "t" registers for textures
+Texture2D NormalMap : register(t1);
 SamplerState BasicSampler : register(s0);   // "s" registers for samplers
 
 // --------------------------------------------------------
@@ -34,6 +35,20 @@ float4 main(VertexToPixel input) : SV_TARGET
 {
     // renoramlize the normal after going through the Rasterizer
     input.normal = normalize(input.normal);
+    input.tangent = normalize(input.tangent);
+    
+    // Unpack normal from texture sample – ensure normalization!
+    float3 normalFromMap = NormalMap.Sample(BasicSampler, input.uv).rgb;
+    float3 unpackedNormal = normalize(normalFromMap * 2.0f - 1.0f);
+    
+    // Create TBN matrix
+    float3 N = normalize(input.normal);
+    float3 T = normalize(input.tangent - dot(input.tangent, N) * N); // Orthonormalize
+    float3 B = cross(T, N);
+    float3x3 TBN = float3x3(T, B, N);
+    
+    // Transform normal from map using TBN
+    float3 finalNormal = mul(unpackedNormal, TBN);
     
 	// Scale and offset the uv
     input.uv = input.uv * scale + offset;
@@ -57,15 +72,16 @@ float4 main(VertexToPixel input) : SV_TARGET
         switch (light.Type)
         {
             case LIGHT_TYPE_DIRECTIONAL:
-                totalLight += DirLight(light, input.normal, toCamera, surfaceColor);
+                totalLight += DirLight(light, finalNormal, toCamera, surfaceColor);
                 break;
             case LIGHT_TYPE_POINT:
-                totalLight += PointLight(light, input.normal, input.worldPosition, toCamera, surfaceColor);
+                totalLight += PointLight(light, finalNormal, input.worldPosition, toCamera, surfaceColor);
                 break;
             case LIGHT_TYPE_SPOT:
-                totalLight += SpotLight(light, input.normal, input.worldPosition, toCamera, surfaceColor);
+                totalLight += SpotLight(light, finalNormal, input.worldPosition, toCamera, surfaceColor);
                 break;
         }
     }
+    
     return float4(totalLight, 1);
 }

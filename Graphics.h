@@ -39,6 +39,10 @@ namespace Graphics
 	void ShutDown();
 	void ResizeBuffers(unsigned int width, unsigned int height);
 
+	// Shader loading helpers
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> LoadPixelShader(std::wstring filePath);
+	Microsoft::WRL::ComPtr<ID3D11VertexShader> LoadVertexShader(std::wstring filePath);
+
 	// Constant buffer helper
 	void FillAndBindNextConstantBuffer(
 		void* data,

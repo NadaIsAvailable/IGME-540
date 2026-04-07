@@ -35,9 +35,16 @@ VertexToPixel main( VertexShaderInput input )
 	
 	// Calculation data for PS
     output.uv = input.uv;
-    output.normal = mul((float3x3) world, input.normal);
+	
+	// use worldInvTranspose to avoid nonuniform scaling issues
     output.normal = mul((float3x3) worldInvTranspose, input.normal);
+    output.normal = normalize(output.normal); // renormalize after transformation
+	
     output.worldPosition = mul(world, float4(input.localPosition, 1)).xyz;
+	
+	// similar to normal, but use world matrix
+    output.tangent = mul((float3x3) world, input.tangent);
+    output.tangent = normalize(output.tangent);
 
 	// Whatever we return will make its way through the pipeline to the
 	// next programmable stage we're using (the pixel shader for now)
