@@ -51,7 +51,7 @@ private:
 	std::shared_ptr<Sky> sky;
 
 	// Lighting
-	DirectX::XMFLOAT3 ambientColor;
+	// DirectX::XMFLOAT3 ambientColor;
 	std::vector<Light> lights;
 
 	// Mesh class testing
@@ -65,6 +65,7 @@ private:
 	int activeCamera;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
+	void LoadTexture(std::wstring path, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>* srv);
 	void CreateEntities();
 	void SetUpInputLayoutAndGraphics();
 	void UpdateImGui(float deltaTime);

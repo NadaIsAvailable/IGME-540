@@ -1,4 +1,4 @@
-#include "ShaderStructsIncludes.hlsli"
+#include "StructsIncludes.hlsli"
 
 TextureCube SkyTexture : register(t0);
 SamplerState BasicSampler : register(s0);

@@ -26,8 +26,8 @@ struct PSConstantBuffer
 	DirectX::XMFLOAT3 cameraPos;
 	float padding1;
 
-	DirectX::XMFLOAT3 ambientColor;
-	float padding2;
+	/*DirectX::XMFLOAT3 ambientColor;
+	float padding2;*/
 
 	Light lights[MAX_LIGHTS];
 	int lightCount;

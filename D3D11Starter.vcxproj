@@ -259,8 +259,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="ShaderLightingIncludes.hlsli" />
-    <None Include="ShaderStructsIncludes.hlsli" />
+    <None Include="LightingIncludes.hlsli" />
+    <None Include="StructsIncludes.hlsli" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -36,8 +36,8 @@ Game::Game() :
 	textInput("edit this text"),
 	rotateX(false),
 	rotateY(false),
-	rotateZ(false),
-	ambientColor(0.1f, 0.1f, 0.25f)
+	rotateZ(false)
+	//ambientColor(0.1f, 0.1f, 0.25f)
 {
 	// Set ups
 	CreateEntities();
@@ -96,7 +96,7 @@ Game::Game() :
 		psData.scale = XMFLOAT2(1.0f, 1.0f);
 		psData.offset = XMFLOAT2(0.0f, 0.0f);
 		psData.cameraPos = XMFLOAT3(0.0f, 0.0f, 0.0f);
-		psData.ambientColor = ambientColor;
+		//psData.ambientColor = ambientColor;
 	}
 }
 
@@ -128,6 +128,19 @@ void Game::OnResize()
 }
 
 // --------------------------------------------------------
+// Load texture helper
+// --------------------------------------------------------
+void Game::LoadTexture(std::wstring path, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>* srv)
+{
+	CreateWICTextureFromFile(
+		Graphics::Device.Get(),
+		Graphics::Context.Get(),
+		FixPath(path).c_str(),
+		0,
+		srv->GetAddressOf());
+}
+
+// --------------------------------------------------------
 // Create game entities - load shader + create materials + load meshes -> entities
 // --------------------------------------------------------
 void Game::CreateEntities()
@@ -156,48 +169,127 @@ void Game::CreateEntities()
 	Graphics::Device->CreateSamplerState(&sd, sampler.GetAddressOf());
 
 	// Texture shader resource views
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> coastSRV;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> coastNormalSRV;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> pebblesSRV;
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> pebblesNormalSRV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bronzeAlbedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bronzeNormal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bronzeRoughness;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bronzeMetal;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cobblestoneAlbedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cobblestoneNormal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cobblestoneRoughness;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cobblestoneMetal;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> floorAlbedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> floorNormal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> floorRoughness;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> floorMetal;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> paintAlbedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> paintNormal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> paintRoughness;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> paintMetal;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roughAlbedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roughNormal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roughRoughness;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> roughMetal;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> scratchedAlbedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> scratchedNormal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> scratchedRoughness;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> scratchedMetal;
+
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> woodAlbedo;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> woodNormal;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> woodRoughness;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> woodMetal;
 
 	// Load textures
-	CreateWICTextureFromFile(
-		Graphics::Device.Get(), 
-		Graphics::Context.Get(), 
-		FixPath(L"../../Assets/Textures/coast_sand_rocks_diff.png").c_str(), 
-		0, 
-		coastSRV.GetAddressOf());
-	CreateWICTextureFromFile(
-		Graphics::Device.Get(),
-		Graphics::Context.Get(),
-		FixPath(L"../../Assets/Textures/coast_sand_rocks_normal.png").c_str(),
-		0,
-		coastNormalSRV.GetAddressOf());
-	CreateWICTextureFromFile(
-		Graphics::Device.Get(), 
-		Graphics::Context.Get(), 
-		FixPath(L"../../Assets/Textures/pebbles_diff.png").c_str(), 
-		0, 
-		pebblesSRV.GetAddressOf());
-	CreateWICTextureFromFile(
-		Graphics::Device.Get(),
-		Graphics::Context.Get(),
-		FixPath(L"../../Assets/Textures/pebbles_normal.png").c_str(),
-		0,
-		pebblesNormalSRV.GetAddressOf());
+	LoadTexture(L"../../Assets/Textures/bronze_albedo.png", &bronzeAlbedo);
+	LoadTexture(L"../../Assets/Textures/bronze_normals.png", &bronzeNormal);
+	LoadTexture(L"../../Assets/Textures/bronze_roughness.png", &bronzeRoughness);
+	LoadTexture(L"../../Assets/Textures/bronze_metal.png", &bronzeMetal);
+
+	LoadTexture(L"../../Assets/Textures/cobblestone_albedo.png", &cobblestoneAlbedo);
+	LoadTexture(L"../../Assets/Textures/cobblestone_normals.png", &cobblestoneNormal);
+	LoadTexture(L"../../Assets/Textures/cobblestone_roughness.png", &cobblestoneRoughness);
+	LoadTexture(L"../../Assets/Textures/cobblestone_metal.png", &cobblestoneMetal);
+
+	LoadTexture(L"../../Assets/Textures/floor_albedo.png", &floorAlbedo);
+	LoadTexture(L"../../Assets/Textures/floor_normals.png", &floorNormal);
+	LoadTexture(L"../../Assets/Textures/floor_roughness.png", &floorRoughness);
+	LoadTexture(L"../../Assets/Textures/floor_metal.png", &floorMetal);
+
+	LoadTexture(L"../../Assets/Textures/paint_albedo.png", &paintAlbedo);
+	LoadTexture(L"../../Assets/Textures/paint_normals.png", &paintNormal);
+	LoadTexture(L"../../Assets/Textures/paint_roughness.png", &paintRoughness);
+	LoadTexture(L"../../Assets/Textures/paint_metal.png", &paintMetal);
+
+	LoadTexture(L"../../Assets/Textures/rough_albedo.png", &roughAlbedo);
+	LoadTexture(L"../../Assets/Textures/rough_normals.png", &roughNormal);
+	LoadTexture(L"../../Assets/Textures/rough_roughness.png", &roughRoughness);
+	LoadTexture(L"../../Assets/Textures/rough_metal.png", &roughMetal);
+
+	LoadTexture(L"../../Assets/Textures/scratched_albedo.png", &scratchedAlbedo);
+	LoadTexture(L"../../Assets/Textures/scratched_normals.png", &scratchedNormal);
+	LoadTexture(L"../../Assets/Textures/scratched_roughness.png", &scratchedRoughness);
+	LoadTexture(L"../../Assets/Textures/scratched_metal.png", &scratchedMetal);
+
+	LoadTexture(L"../../Assets/Textures/wood_albedo.png", &woodAlbedo);
+	LoadTexture(L"../../Assets/Textures/wood_normals.png", &woodNormal);
+	LoadTexture(L"../../Assets/Textures/wood_roughness.png", &woodRoughness);
+	LoadTexture(L"../../Assets/Textures/wood_metal.png", &woodMetal);
 
 	// Make materials
 	// Set textures and sampler for each material
-	std::shared_ptr<Material> coast = std::make_shared<Material>("Coast Texture", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
-	coast->AddTextureSRV(0, coastSRV);
-	coast->AddTextureSRV(1, coastNormalSRV);
-	coast->AddSampler(0, sampler);
+	std::shared_ptr<Material> bronze = std::make_shared<Material>("Bronze", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	bronze->AddTextureSRV(0, bronzeAlbedo);
+	bronze->AddTextureSRV(1, bronzeNormal);
+	bronze->AddTextureSRV(2, bronzeRoughness);
+	bronze->AddTextureSRV(3, bronzeMetal);
+	bronze->AddSampler(0, sampler);
 
-	std::shared_ptr<Material> pebbles = std::make_shared<Material>("Pebbles Texture", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
-	pebbles->AddTextureSRV(0, pebblesSRV);
-	pebbles->AddTextureSRV(1, pebblesNormalSRV);
-	pebbles->AddSampler(0, sampler);
+	std::shared_ptr<Material> cobblestone = std::make_shared<Material>("Cobblestone", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	cobblestone->AddTextureSRV(0, cobblestoneAlbedo);
+	cobblestone->AddTextureSRV(1, cobblestoneNormal);
+	cobblestone->AddTextureSRV(2, cobblestoneRoughness);
+	cobblestone->AddTextureSRV(3, cobblestoneMetal);
+	cobblestone->AddSampler(0, sampler);
+
+	std::shared_ptr<Material> floor = std::make_shared<Material>("Floor", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	floor->AddTextureSRV(0, floorAlbedo);
+	floor->AddTextureSRV(1, floorNormal);
+	floor->AddTextureSRV(2, floorRoughness);
+	floor->AddTextureSRV(3, floorMetal);
+	floor->AddSampler(0, sampler);
+
+	std::shared_ptr<Material> paint = std::make_shared<Material>("Paint", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	paint->AddTextureSRV(0, paintAlbedo);
+	paint->AddTextureSRV(1, paintNormal);
+	paint->AddTextureSRV(2, paintRoughness);
+	paint->AddTextureSRV(3, paintMetal);
+	paint->AddSampler(0, sampler);
+
+	std::shared_ptr<Material> rough = std::make_shared<Material>("Rough", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	rough->AddTextureSRV(0, roughAlbedo);
+	rough->AddTextureSRV(1, roughNormal);
+	rough->AddTextureSRV(2, roughRoughness);
+	rough->AddTextureSRV(3, roughMetal);
+	rough->AddSampler(0, sampler);
+
+	std::shared_ptr<Material> scratched = std::make_shared<Material>("Scratched", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	scratched->AddTextureSRV(0, scratchedAlbedo);
+	scratched->AddTextureSRV(1, scratchedNormal);
+	scratched->AddTextureSRV(2, scratchedRoughness);
+	scratched->AddTextureSRV(3, scratchedMetal);
+	scratched->AddSampler(0, sampler);
+
+	std::shared_ptr<Material> wood = std::make_shared<Material>("Wood", XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f), basicPS, basicVS);
+	wood->AddTextureSRV(0, woodAlbedo);
+	wood->AddTextureSRV(1, woodNormal);
+	wood->AddTextureSRV(2, woodRoughness);
+	wood->AddTextureSRV(3, woodMetal);
+	wood->AddSampler(0, sampler);
 
 	// Make meshes from the .obj files
 	meshes.push_back(std::make_shared<Mesh>("Cube", FixPath("../../Assets/Meshes/cube.obj").c_str()));
@@ -209,13 +301,13 @@ void Game::CreateEntities()
 	meshes.push_back(std::make_shared<Mesh>("Quad (Double-Sided)" ,FixPath("../../Assets/Meshes/quad_double_sided.obj").c_str()));
 
 	// Make entities from the meshes and materials
-	entities.push_back(GameEntity(meshes[0], coast));
-	entities.push_back(GameEntity(meshes[1], coast));
-	entities.push_back(GameEntity(meshes[2], coast));
-	entities.push_back(GameEntity(meshes[3], pebbles));
-	entities.push_back(GameEntity(meshes[4], pebbles));
-	entities.push_back(GameEntity(meshes[5], pebbles));
-	entities.push_back(GameEntity(meshes[6], pebbles));
+	entities.push_back(GameEntity(meshes[3], bronze));
+	entities.push_back(GameEntity(meshes[3], cobblestone));
+	entities.push_back(GameEntity(meshes[3], floor));
+	entities.push_back(GameEntity(meshes[3], paint));
+	entities.push_back(GameEntity(meshes[3], rough));
+	entities.push_back(GameEntity(meshes[3], scratched));
+	entities.push_back(GameEntity(meshes[3], wood));
 
 	// Spread out the entities
 	float x = -5.0f;
@@ -242,7 +334,7 @@ void Game::CreateEntities()
 	Light dirLight1 = {};
 	dirLight1.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight1.Direction = XMFLOAT3(1.0f, 0.0f, 0.0f);
-	dirLight1.Color = XMFLOAT3(1.f, 0.0f, 0.0f);
+	dirLight1.Color = XMFLOAT3(1.f, 1.0f, 1.0f);
 	dirLight1.Intensity = 0.5f;
 	lights.push_back(dirLight1);
 
@@ -252,28 +344,28 @@ void Game::CreateEntities()
 	dirLight2.Color = XMFLOAT3(0.f, 1.0f, 0.0f);
 	dirLight2.Intensity = 0.5f;
 	lights.push_back(dirLight2);
-
+	
 	Light dirLight3 = {};
 	dirLight3.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight3.Direction = XMFLOAT3(0.0f, 0.0f, 1.0f);
 	dirLight3.Color = XMFLOAT3(0.f, 0.0f, 1.0f);
 	dirLight3.Intensity = 0.5f;
 	lights.push_back(dirLight3);
-
+	
 	Light dirLight4 = {};
 	dirLight4.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight4.Direction = XMFLOAT3(1.0f, 1.0f, 0.0f);
 	dirLight4.Color = XMFLOAT3(1.f, 1.0f, 0.0f);
 	dirLight4.Intensity = 0.5f;
 	lights.push_back(dirLight4);
-
+	
 	Light dirLight5 = {};
 	dirLight5.Type = LIGHT_TYPE_DIRECTIONAL;
 	dirLight5.Direction = XMFLOAT3(0.0f, 1.0f, 1.0f);
 	dirLight5.Color = XMFLOAT3(0.f, 1.0f, 1.0f);
 	dirLight5.Intensity = 0.5f;
 	lights.push_back(dirLight5);
-
+	
 	Light pointLight1 = {};
 	pointLight1.Type = LIGHT_TYPE_POINT;
 	pointLight1.Position = XMFLOAT3(3.0f, 4.0f, 0.0f);
@@ -281,7 +373,7 @@ void Game::CreateEntities()
 	pointLight1.Range = 8.0f;
 	pointLight1.Intensity = 1.0f;
 	lights.push_back(pointLight1);
-
+	
 	Light spotLight1 = {};
 	spotLight1.Type = LIGHT_TYPE_SPOT;
 	spotLight1.Direction = XMFLOAT3(0.0f, -1.0f, 0.0f);
@@ -588,17 +680,19 @@ void Game::BuildUI()
 	}
 
 	// Custom Shader Controls
+	/*
 	if (ImGui::CollapsingHeader("Custom Shader"))
 	{
 		XMFLOAT3 intensity = psData.intensities;
 		if (ImGui::SliderFloat3("RGB Intensities", &intensity.x, 0.0f, 1.0f))
 			DirectX::XMStoreFloat3(&psData.intensities, XMLoadFloat3(&intensity));
 	}
+	*/
 
 	// Lighting
 	if (ImGui::CollapsingHeader("Lights"))
 	{
-		ImGui::ColorEdit3("Ambient Color", &ambientColor.x);
+		// ImGui::ColorEdit3("Ambient Color", &ambientColor.x);
 
 		for (uint i = 0; i < lights.size(); i++)
 		{
@@ -716,7 +810,7 @@ void Game::Draw(float deltaTime, float totalTime)
 	vsData.projection = cameras[activeCamera]->GetProjection();
 	psData.totalTime = totalTime;
 	psData.cameraPos = cameras[activeCamera]->GetTransform()->GetPosition();
-	psData.ambientColor = ambientColor;
+	// psData.ambientColor = ambientColor;
 	memcpy(&psData.lights, &lights[0], sizeof(Light) * (int)lights.size());
 	psData.lightCount = (int)lights.size();
 

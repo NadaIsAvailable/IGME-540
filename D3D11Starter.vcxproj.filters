@@ -175,10 +175,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="ShaderLightingIncludes.hlsli">
+    <None Include="LightingIncludes.hlsli">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="ShaderStructsIncludes.hlsli">
+    <None Include="StructsIncludes.hlsli">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>

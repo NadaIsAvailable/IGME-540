@@ -1,5 +1,5 @@
-#include "ShaderStructsIncludes.hlsli"
-#include "ShaderLightingIncludes.hlsli"
+#include "StructsIncludes.hlsli"
+#include "LightingIncludes.hlsli"
 
 #define MAX_LIGHTS 128
 

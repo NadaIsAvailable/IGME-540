@@ -1,4 +1,4 @@
-#include "ShaderStructsIncludes.hlsli"
+#include "StructsIncludes.hlsli"
 
 cbuffer ExternalData : register(b0)
 {
