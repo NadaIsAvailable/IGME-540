@@ -50,19 +50,27 @@ private:
 	// Sky
 	std::shared_ptr<Sky> sky;
 
-	// Lighting
+	// Lightings
 	// DirectX::XMFLOAT3 ambientColor;
 	std::vector<Light> lights;
 
-	// Mesh class testing
+	// Meshes
 	std::vector<std::shared_ptr<Mesh>> meshes;
 
-	// GameEntity class testing
+	// Game entities
 	std::vector<GameEntity> entities;
 
-	// Camera class testing
+	// Cameras
 	std::vector<std::shared_ptr<Camera>> cameras;
 	int activeCamera;
+
+	// Shadow mapping
+	Microsoft::WRL::ComPtr<ID3D11DepthStencilView> shadowDSV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadowSRV;
+	Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadowRasterizer;
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> shadowSampler;
+	Microsoft::WRL::ComPtr<ID3D11VertexShader> shadowVS;
+	ShadowOptions shadowOptions;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadTexture(std::wstring path, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>* srv);
@@ -70,6 +78,8 @@ private:
 	void SetUpInputLayoutAndGraphics();
 	void UpdateImGui(float deltaTime);
 	void BuildUI();
+	void CreateShadowMapResources();
+	void CreateShadowMap();
 
 	// Note the usage of ComPtr below
 	//  - This is a smart pointer for objects that abide by the

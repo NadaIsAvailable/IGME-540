@@ -23,11 +23,12 @@ struct VertexToPixel
 	//  |   Name          Semantic
 	//  |    |                |
 	//  v    v                v
-    float4 screenPosition	: SV_POSITION;	// XYZW position (System Value Position)
-    float2 uv				: TEXCOORD;		// UV coordinates
-    float3 normal			: NORMAL;		// Normal vector
-    float3 worldPosition	: POSITION;		// World position
-    float3 tangent			: TANGENT;		// Tangent vector
+    float4 screenPosition	: SV_POSITION;		// XYZW position (System Value Position)
+    float2 uv				: TEXCOORD;			// UV coordinates
+    float3 normal			: NORMAL;			// Normal vector
+    float3 worldPosition	: POSITION;			// World position
+    float3 tangent			: TANGENT;			// Tangent vector
+    float4 shadowMapPos		: SHADOW_POSITION;	// Shadow map position
 };
 
 // Struct representing a single pixel worth of data for sky box

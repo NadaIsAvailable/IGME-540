@@ -81,7 +81,7 @@ Game::Game() :
 		//ImGui::StyleColorsClassic();
 	}
 
-	// Buffer initial data
+	// Struct initial data
 	{
 		vsData = {};
 		// Set some initial data for the vs constant buffer
@@ -97,7 +97,15 @@ Game::Game() :
 		psData.offset = XMFLOAT2(0.0f, 0.0f);
 		psData.cameraPos = XMFLOAT3(0.0f, 0.0f, 0.0f);
 		//psData.ambientColor = ambientColor;
+
+		shadowOptions = {};
+		// Set some initial data for the shadow mapping options struct
+		shadowOptions.shadowMapResolution = 1024;
+		shadowOptions.lightProjectionSize = 15.0f;
 	}
+
+	// Create shadow map resources (after shadow options filled in)
+	CreateShadowMapResources();
 }
 
 // --------------------------------------------------------
@@ -302,12 +310,13 @@ void Game::CreateEntities()
 
 	// Make entities from the meshes and materials
 	entities.push_back(GameEntity(meshes[3], bronze));
-	entities.push_back(GameEntity(meshes[3], cobblestone));
-	entities.push_back(GameEntity(meshes[3], floor));
-	entities.push_back(GameEntity(meshes[3], paint));
+	entities.push_back(GameEntity(meshes[0], cobblestone));
+	entities.push_back(GameEntity(meshes[1], floor));
+	entities.push_back(GameEntity(meshes[2], paint));
 	entities.push_back(GameEntity(meshes[3], rough));
 	entities.push_back(GameEntity(meshes[3], scratched));
 	entities.push_back(GameEntity(meshes[3], wood));
+	entities.push_back(GameEntity(meshes[6], wood));	// floor for shadows
 
 	// Spread out the entities
 	float x = -5.0f;
@@ -330,10 +339,16 @@ void Game::CreateEntities()
 		y -= 4.0f;
 	}
 
+	entities[0].GetTransform()->SetPosition(-5.0f, 8.0f, -4.0f);
+
+	// Set up the floor entity to be larger and under all other entities
+	entities[7].GetTransform()->SetPosition(5.0f, -2.0f, 0.0f);
+	entities[7].GetTransform()->SetScale(30.0f, 1.0f, 20.0f);
+
 	// Lights
-	Light dirLight1 = {};
+	Light dirLight1 = {};	// shadow casting light
 	dirLight1.Type = LIGHT_TYPE_DIRECTIONAL;
-	dirLight1.Direction = XMFLOAT3(1.0f, 0.0f, 0.0f);
+	dirLight1.Direction = XMFLOAT3(0.0f, -0.707f, 0.707f);
 	dirLight1.Color = XMFLOAT3(1.f, 1.0f, 1.0f);
 	dirLight1.Intensity = 0.5f;
 	lights.push_back(dirLight1);
@@ -758,8 +773,168 @@ void Game::BuildUI()
 		}
 	}
 
+	// Shadow Mapping
+	if (ImGui::CollapsingHeader("Shadow Mapping"))
+	{
+		// ImGui::SliderInt("Shadow Map Resolution", &shadowOptions.shadowMapResolution, 256, 4096);
+		// ImGui::SliderFloat("Light Projection Size", &shadowOptions.lightProjectionSize, 1.0f, 50.0f);
+		ImGui::Text("Shadow Map");
+		ImGui::Image(shadowSRV.Get(), ImVec2(256, 256));
+	}
+
 	// End custom ui window
 	ImGui::End();
+}
+
+// --------------------------------------------------------
+// Create any resources needed for shadow mapping here
+// --------------------------------------------------------
+void Game::CreateShadowMapResources()
+{
+	shadowDSV.Reset();
+	shadowSRV.Reset();
+	shadowRasterizer.Reset();
+	shadowSampler.Reset();
+
+	// Create the actual texture that will be the shadow map
+	D3D11_TEXTURE2D_DESC shadowDesc = {};
+	shadowDesc.Width = shadowOptions.shadowMapResolution;
+	shadowDesc.Height = shadowOptions.shadowMapResolution;
+	shadowDesc.ArraySize = 1;
+	shadowDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	shadowDesc.CPUAccessFlags = 0;
+	shadowDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	shadowDesc.MipLevels = 1;
+	shadowDesc.MiscFlags = 0;
+	shadowDesc.SampleDesc.Count = 1;
+	shadowDesc.SampleDesc.Quality = 0;
+	shadowDesc.Usage = D3D11_USAGE_DEFAULT;
+
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> shadowTexture;
+	Graphics::Device->CreateTexture2D(&shadowDesc, 0, shadowTexture.GetAddressOf());
+
+	// Create the depth/stencil view
+	D3D11_DEPTH_STENCIL_VIEW_DESC shadowDSDesc = {};
+	shadowDSDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	shadowDSDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	shadowDSDesc.Texture2D.MipSlice = 0;
+	Graphics::Device->CreateDepthStencilView(
+		shadowTexture.Get(),
+		&shadowDSDesc,
+		shadowDSV.GetAddressOf());
+
+	// Create the SRV for the shadow map
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	Graphics::Device->CreateShaderResourceView(
+		shadowTexture.Get(),
+		&srvDesc,
+		shadowSRV.GetAddressOf());
+
+	// Create a RS for the shadow map
+	D3D11_RASTERIZER_DESC shadowRastDesc = {};
+	shadowRastDesc.FillMode = D3D11_FILL_SOLID;
+	shadowRastDesc.CullMode = D3D11_CULL_BACK;
+	shadowRastDesc.DepthClipEnable = false; // Keep out-of-frustum objects!
+	shadowRastDesc.DepthBias = 1000; // Min. precision units, not world units!
+	shadowRastDesc.SlopeScaledDepthBias = 1.0f; // Bias more based on slope
+	Graphics::Device->CreateRasterizerState(&shadowRastDesc, &shadowRasterizer);
+
+	// Create a sampler for the shadow map
+	D3D11_SAMPLER_DESC shadowSampDesc = {};
+	shadowSampDesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+	shadowSampDesc.ComparisonFunc = D3D11_COMPARISON_LESS;
+	shadowSampDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	shadowSampDesc.BorderColor[0] = 1.0f; // Only need the first component
+	Graphics::Device->CreateSamplerState(&shadowSampDesc, &shadowSampler);
+
+	// The first light is the shadow casting directional light
+	XMVECTOR lightDirection = XMLoadFloat3(&lights[0].Direction);
+	XMStoreFloat4x4(
+		&shadowOptions.lightViewMatrix, 
+		XMMatrixLookToLH(
+			-lightDirection * 20,		// Position: "Backing up" 20 units from origin
+			lightDirection,				// Direction: light's direction
+			XMVectorSet(0, 1, 0, 0))	// Up: World up vector (Y axis)
+	);
+
+	XMStoreFloat4x4(
+		&shadowOptions.lightProjectionMatrix,
+		XMMatrixOrthographicLH(
+			shadowOptions.lightProjectionSize,
+			shadowOptions.lightProjectionSize,
+			1.0f,
+			100.0f)
+	);
+
+	// Set up shadow vertex shader
+	shadowVS = Graphics::LoadVertexShader(L"ShadowVS.cso");
+}
+
+// --------------------------------------------------------
+// Create the shadow map each frame in this method (called from Game::Draw())
+// --------------------------------------------------------
+void Game::CreateShadowMap()
+{
+	// Shadow map settings
+	// Reset all depth values to 1.0
+	Graphics::Context->ClearDepthStencilView(shadowDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	// Bind to the shadow map render target instead of the back buffer
+	ID3D11RenderTargetView* nullRTV{};
+	Graphics::Context->OMSetRenderTargets(1, &nullRTV, shadowDSV.Get());
+
+	// Set the rasterizer state to add depth bias to get rid of shadow acne
+	Graphics::Context->RSSetState(shadowRasterizer.Get());
+
+	// Set shadow VS and deactivate PS
+	Graphics::Context->VSSetShader(shadowVS.Get(), 0, 0);
+	Graphics::Context->PSSetShader(0, 0, 0);
+
+	// Match the viewport size to the shadow map resolution
+	D3D11_VIEWPORT viewport = {};
+	viewport.Width = (float)shadowOptions.shadowMapResolution;
+	viewport.Height = (float)shadowOptions.shadowMapResolution;
+	viewport.MaxDepth = 1.0f;
+	Graphics::Context->RSSetViewports(1, &viewport);
+
+	struct ShadowVSData
+	{
+		XMFLOAT4X4 world;
+		XMFLOAT4X4 view;
+		XMFLOAT4X4 proj;
+	};
+
+	ShadowVSData shadowVSData = {};
+	shadowVSData.view = shadowOptions.lightViewMatrix;
+	shadowVSData.proj = shadowOptions.lightProjectionMatrix;
+
+	// Loop and draw all entities
+	for (auto& e : entities)
+	{
+		shadowVSData.world = e.GetTransform()->GetWorldMatrix();
+		Graphics::FillAndBindNextConstantBuffer(
+			&shadowVSData,
+			sizeof(ShadowVSData),
+			D3D11_VERTEX_SHADER,
+			0);
+		e.Draw();
+	}
+
+	// Change settings back to normal for regular drawing in Game::Draw()
+	Graphics::Context->OMSetRenderTargets(
+		1,
+		Graphics::BackBufferRTV.GetAddressOf(),
+		Graphics::DepthBufferDSV.Get());
+	viewport.Width = (float)Window::Width();
+	viewport.Height = (float)Window::Height();
+	Graphics::Context->RSSetViewports(1, &viewport);
+	Graphics::Context->RSSetState(0);
 }
 
 // --------------------------------------------------------
@@ -772,6 +947,7 @@ void Game::Update(float deltaTime, float totalTime)
 		Window::Quit();
 
 	UpdateImGui(deltaTime);
+
 	BuildUI();
 
 	for (auto& entity : entities)
@@ -787,6 +963,8 @@ void Game::Update(float deltaTime, float totalTime)
 		// Rotate each entity a little
 		entity.GetTransform()->Rotate(rot);
 	}
+
+	entities[0].GetTransform()->MoveAbsolute(XMFLOAT3((float)sin(totalTime) * 0.01f, 0.0f, 0.0f));
 
 	cameras[activeCamera]->Update(deltaTime);
 }
@@ -805,9 +983,18 @@ void Game::Draw(float deltaTime, float totalTime)
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	}
 
+	CreateShadowMap();
+
+	// Bind shadow resources to PS
+	Graphics::Context->PSSetShaderResources(4, 1, shadowSRV.GetAddressOf());
+	Graphics::Context->PSSetSamplers(1, 1, shadowSampler.GetAddressOf());
+
 	// Update the constant buffer data (same for all entities)
 	vsData.view = cameras[activeCamera]->GetView();
 	vsData.projection = cameras[activeCamera]->GetProjection();
+	vsData.lightView = shadowOptions.lightViewMatrix;
+	vsData.lightProjection = shadowOptions.lightProjectionMatrix;
+
 	psData.totalTime = totalTime;
 	psData.cameraPos = cameras[activeCamera]->GetTransform()->GetPosition();
 	// psData.ambientColor = ambientColor;
@@ -860,6 +1047,9 @@ void Game::Draw(float deltaTime, float totalTime)
 
 	ImGui::Render(); // Turns this frame’s UI into renderable triangles
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
+
+	ID3D11ShaderResourceView* nullSRVs[128] = {};
+	Graphics::Context->PSSetShaderResources(0, 128, nullSRVs);
 
 	// Frame END
 	// - These should happen exactly ONCE PER FRAME
