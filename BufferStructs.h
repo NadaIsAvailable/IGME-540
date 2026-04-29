@@ -52,5 +52,8 @@ struct ShadowOptions
 struct PostProcessOptions
 {
 	bool postProcessEnabled;
+	bool bloomEnabled;
+	bool blurEnabled;
 	int blurDistance;
+	float bloomThreshold;
 };

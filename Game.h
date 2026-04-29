@@ -75,10 +75,24 @@ private:
 	// Resources that are shared among all post processes
 	Microsoft::WRL::ComPtr<ID3D11SamplerState> ppSampler;
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> ppVS;
+
 	// Resources that are tied to a particular post process
-	Microsoft::WRL::ComPtr<ID3D11PixelShader> ppPS;
-	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> ppRTV; // For rendering
-	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> ppSRV; // For sampling
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> blurPS;
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> bloomPS;
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> combineBloomPS;
+
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> preRTV; // For rendering
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> preSRV; // For sampling
+
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> bloomExtractRTV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bloomExtractSRV;
+
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> bloomCombinedRTV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> bloomCombinedSRV;
+
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> blurRTV;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> blurSRV;
+
 	PostProcessOptions ppOptions;
 
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
