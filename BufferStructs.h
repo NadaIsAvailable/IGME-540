@@ -48,3 +48,9 @@ struct ShadowOptions
 	int shadowMapResolution;	// Ideally a power of 2 (like 1024)
 	float lightProjectionSize;
 };
+
+struct PostProcessOptions
+{
+	bool postProcessEnabled;
+	int blurDistance;
+};

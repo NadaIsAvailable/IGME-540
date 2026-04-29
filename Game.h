@@ -72,6 +72,15 @@ private:
 	Microsoft::WRL::ComPtr<ID3D11VertexShader> shadowVS;
 	ShadowOptions shadowOptions;
 
+	// Resources that are shared among all post processes
+	Microsoft::WRL::ComPtr<ID3D11SamplerState> ppSampler;
+	Microsoft::WRL::ComPtr<ID3D11VertexShader> ppVS;
+	// Resources that are tied to a particular post process
+	Microsoft::WRL::ComPtr<ID3D11PixelShader> ppPS;
+	Microsoft::WRL::ComPtr<ID3D11RenderTargetView> ppRTV; // For rendering
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> ppSRV; // For sampling
+	PostProcessOptions ppOptions;
+
 	// Initialization helper methods - feel free to customize, combine, remove, etc.
 	void LoadTexture(std::wstring path, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>* srv);
 	void CreateEntities();
@@ -80,6 +89,7 @@ private:
 	void BuildUI();
 	void CreateShadowMapResources();
 	void CreateShadowMap();
+	void CreatePPResources();
 
 	// Note the usage of ComPtr below
 	//  - This is a smart pointer for objects that abide by the

@@ -102,6 +102,11 @@ Game::Game() :
 		// Set some initial data for the shadow mapping options struct
 		shadowOptions.shadowMapResolution = 1024;
 		shadowOptions.lightProjectionSize = 15.0f;
+
+		ppOptions = {};
+		// Set some initial data for the post process options struct
+		ppOptions.postProcessEnabled = true;
+		ppOptions.blurDistance = 5;
 	}
 
 	// Create shadow map resources (after shadow options filled in)
@@ -133,6 +138,8 @@ void Game::OnResize()
 	{
 		if (camera) camera->UpdateProjectionMatrix(Window::AspectRatio());
 	}
+
+	CreatePPResources();
 }
 
 // --------------------------------------------------------
@@ -413,6 +420,22 @@ void Game::CreateEntities()
 		FixPath(L"../../Assets/Textures/sky/front.png").c_str(),
 		FixPath(L"../../Assets/Textures/sky/back.png").c_str()
 	);
+
+	// Create post process resources
+	// Set up vertex shader and pixel shader
+	ppVS = Graphics::LoadVertexShader(L"FullscreenVS.cso");
+	ppPS = Graphics::LoadPixelShader(L"PostProcessPS.cso");
+
+	CreatePPResources();
+
+	// Sampler state for post processing
+	D3D11_SAMPLER_DESC ppSampDesc = {};
+	ppSampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	ppSampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	ppSampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	ppSampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	ppSampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	Graphics::Device->CreateSamplerState(&ppSampDesc, ppSampler.GetAddressOf());
 }
 
 // --------------------------------------------------------
@@ -782,6 +805,15 @@ void Game::BuildUI()
 		ImGui::Image(shadowSRV.Get(), ImVec2(256, 256));
 	}
 
+	// Post Processing
+	if (ImGui::CollapsingHeader("Post Processing"))
+	{
+		ImGui::Checkbox("Enable Post Processing", &ppOptions.postProcessEnabled);
+		ImGui::SliderInt("Blur Distance", &ppOptions.blurDistance, 0, 10);
+		ImGui::Text("Pre-Process");
+		ImGui::Image(ppSRV.Get(), ImVec2(Window::Width() / 4, Window::Height() / 4));
+	}
+
 	// End custom ui window
 	ImGui::End();
 }
@@ -927,14 +959,61 @@ void Game::CreateShadowMap()
 	}
 
 	// Change settings back to normal for regular drawing in Game::Draw()
-	Graphics::Context->OMSetRenderTargets(
-		1,
-		Graphics::BackBufferRTV.GetAddressOf(),
-		Graphics::DepthBufferDSV.Get());
+	if (ppOptions.postProcessEnabled)
+		Graphics::Context->OMSetRenderTargets(1, ppRTV.GetAddressOf(), Graphics::DepthBufferDSV.Get());
+	else 
+		Graphics::Context->OMSetRenderTargets(
+			1,
+			Graphics::BackBufferRTV.GetAddressOf(),
+			Graphics::DepthBufferDSV.Get());
+	
 	viewport.Width = (float)Window::Width();
 	viewport.Height = (float)Window::Height();
 	Graphics::Context->RSSetViewports(1, &viewport);
 	Graphics::Context->RSSetState(0);
+}
+
+// --------------------------------------------------------
+// Create any resources needed for post processing here
+// --------------------------------------------------------
+void Game::CreatePPResources()
+{
+	ppSRV.Reset();
+	ppRTV.Reset();
+
+	// Describe the texture we're creating
+	D3D11_TEXTURE2D_DESC textureDesc = {};
+	textureDesc.Width = Window::Width();
+	textureDesc.Height = Window::Height();
+	textureDesc.ArraySize = 1;
+	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	textureDesc.CPUAccessFlags = 0;
+	textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	textureDesc.MipLevels = 1;
+	textureDesc.MiscFlags = 0;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	textureDesc.Usage = D3D11_USAGE_DEFAULT;
+	// Create the resource (no need to track it after the views are created below)
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> ppTexture;
+	Graphics::Device->CreateTexture2D(&textureDesc, 0, ppTexture.GetAddressOf());
+
+	// Create the Render Target View
+	D3D11_RENDER_TARGET_VIEW_DESC rtvDesc = {};
+	rtvDesc.Format = textureDesc.Format;
+	rtvDesc.Texture2D.MipSlice = 0;
+	rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	Graphics::Device->CreateRenderTargetView(
+		ppTexture.Get(),
+		&rtvDesc,
+		ppRTV.ReleaseAndGetAddressOf());
+	// Create the Shader Resource View
+	// By passing it a null description for the SRV, we
+	// get a "default" SRV that has access to the entire resource
+	Graphics::Device->CreateShaderResourceView(
+		ppTexture.Get(),
+		0,
+		ppSRV.ReleaseAndGetAddressOf());
 }
 
 // --------------------------------------------------------
@@ -981,6 +1060,17 @@ void Game::Draw(float deltaTime, float totalTime)
 		// Clear the back buffer (erase what's on screen) and depth buffer
 		Graphics::Context->ClearRenderTargetView(Graphics::BackBufferRTV.Get(),	backgroundColor);
 		Graphics::Context->ClearDepthStencilView(Graphics::DepthBufferDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+		// Pre-render before post-processing
+		if (ppOptions.postProcessEnabled)
+		{
+			// Clear post process target too
+			const float rtClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+			Graphics::Context->ClearRenderTargetView(ppRTV.Get(), rtClearColor);
+
+			// Change the render target to render directly into our post-process texture
+			Graphics::Context->OMSetRenderTargets(1, ppRTV.GetAddressOf(), Graphics::DepthBufferDSV.Get());
+		}
 	}
 
 	CreateShadowMap();
@@ -1045,9 +1135,38 @@ void Game::Draw(float deltaTime, float totalTime)
 	// draw the sky
 	sky->Draw(cameras[activeCamera]);
 
-	ImGui::Render(); // Turns this frame’s UI into renderable triangles
-	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
+	// Post Processing
+	{	
+		if (ppOptions.postProcessEnabled)
+		{
+			// Back to the screen (no depth buffer necessary at this point)
+			Graphics::Context->OMSetRenderTargets(1, Graphics::BackBufferRTV.GetAddressOf(), 0);
 
+			// Activate shaders and bind resources
+			Graphics::Context->VSSetShader(ppVS.Get(), 0, 0);
+			Graphics::Context->PSSetShader(ppPS.Get(), 0, 0);
+			Graphics::Context->PSSetShaderResources(0, 1, ppSRV.GetAddressOf());
+			Graphics::Context->PSSetSamplers(0, 1, ppSampler.GetAddressOf());
+
+			struct PPData
+			{
+				float pixelWidth;
+				float pixelHeight;
+				int blurDistance;
+			};
+
+			PPData psData = {};
+			psData.pixelWidth = 1.0f / Window::Width();
+			psData.pixelHeight = 1.0f / Window::Height();
+			psData.blurDistance = 1;
+			Graphics::FillAndBindNextConstantBuffer(&psData, sizeof(PPData), D3D11_PIXEL_SHADER, 0);
+
+			// Draw exactly 3 vertices
+			Graphics::Context->Draw(3, 0);
+		}
+	}
+
+	// Unbind all SRVs at the end of the frame so they won't be bound as inputs next frame
 	ID3D11ShaderResourceView* nullSRVs[128] = {};
 	Graphics::Context->PSSetShaderResources(0, 128, nullSRVs);
 
@@ -1055,6 +1174,9 @@ void Game::Draw(float deltaTime, float totalTime)
 	// - These should happen exactly ONCE PER FRAME
 	// - At the very end of the frame (after drawing *everything*)
 	{
+		ImGui::Render(); // Turns this frame’s UI into renderable triangles
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData()); // Draws it to the screen
+
 		// Present at the end of the frame
 		bool vsync = Graphics::VsyncState();
 		Graphics::SwapChain->Present(
