@@ -1,0 +1,1 @@
+Bloom with 3 extract types: average, lightness, and luminance.
