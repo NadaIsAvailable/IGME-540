@@ -105,11 +105,12 @@ Game::Game() :
 
 		ppOptions = {};
 		// Set some initial data for the post process options struct
-		ppOptions.postProcessEnabled = true;
 		ppOptions.bloomEnabled = false;
 		ppOptions.blurEnabled = true;
+		ppOptions.postProcessEnabled = ppOptions.bloomEnabled || ppOptions.blurEnabled;
 		ppOptions.blurDistance = 5;
 		ppOptions.bloomThreshold = 0.7f;
+		ppOptions.bloomType = BLOOM_TYPE_LUMINANCE;
 	}
 
 	// Create shadow map resources (after shadow options filled in)
@@ -822,19 +823,17 @@ void Game::BuildUI()
 
 		if (ppOptions.bloomEnabled)
 		{
-			ImGui::SliderFloat("Bloom Threshold", &ppOptions.bloomThreshold, 0.0f, 5.0f);
+			ImGui::SliderFloat("Bloom Threshold", &ppOptions.bloomThreshold, 0.0f, 1.0f);
+
+			static const char* options[] = { "Average", "Lightness", "Luminance" };
+			ImGui::Combo("Bloom Type", &ppOptions.bloomType, options, IM_ARRAYSIZE(options));
+
 			ImGui::Text("Bloom (Extract)");
 			ImGui::Image(bloomExtractSRV.Get(), ImVec2(Window::Width() / 4.0f, Window::Height() / 4.0f));
-			ImGui::Text("Bloom (Combined)");
-			ImGui::Image(bloomCombinedSRV.Get(), ImVec2(Window::Width() / 4.0f, Window::Height() / 4.0f));
 		}
 
 		if (ppOptions.blurEnabled)
-		{
 			ImGui::SliderInt("Blur Distance", &ppOptions.blurDistance, 0, 10);
-			ImGui::Text("Blurred");
-			ImGui::Image(blurSRV.Get(), ImVec2(Window::Width() / 4.0f, Window::Height() / 4.0f));
-		}	
 	}
 
 	// End custom ui window
@@ -1212,7 +1211,8 @@ void Game::Draw(float deltaTime, float totalTime)
 			{
 				// Extract bright areas to bloomRTV
 				{
-					Graphics::Context->OMSetRenderTargets(1, bloomExtractRTV.GetAddressOf(), Graphics::DepthBufferDSV.Get());
+					// Set the render target to the bloom extract texture
+					Graphics::Context->OMSetRenderTargets(1, bloomExtractRTV.GetAddressOf(), 0);
 
 					// Activate shaders and bind resources
 					Graphics::Context->VSSetShader(ppVS.Get(), 0, 0);
@@ -1223,19 +1223,26 @@ void Game::Draw(float deltaTime, float totalTime)
 					struct BloomData
 					{
 						float bloomThreshold;
+						int bloomType;
 					};
 
 					BloomData psData = {};
 					psData.bloomThreshold = ppOptions.bloomThreshold;
+					psData.bloomType = ppOptions.bloomType;
 					Graphics::FillAndBindNextConstantBuffer(&psData, sizeof(BloomData), D3D11_PIXEL_SHADER, 0);
 
 					// Draw exactly 3 vertices
 					Graphics::Context->Draw(3, 0);
+
+					// Unbind the SRV
+					ID3D11ShaderResourceView* nullSRV = nullptr;
+					Graphics::Context->PSSetShaderResources(0, 1, &nullSRV);
 				}
 
 				// Blur the bloomed image into blurRTV
 				{
-					Graphics::Context->OMSetRenderTargets(1, blurRTV.GetAddressOf(), Graphics::DepthBufferDSV.Get());
+					// Set the render target to the blur texture
+					Graphics::Context->OMSetRenderTargets(1, blurRTV.GetAddressOf(), 0);
 
 					// Activate shaders and bind resources
 					Graphics::Context->VSSetShader(ppVS.Get(), 0, 0);
@@ -1253,17 +1260,22 @@ void Game::Draw(float deltaTime, float totalTime)
 					BlurData psData = {};
 					psData.pixelWidth = 1.0f / Window::Width();
 					psData.pixelHeight = 1.0f / Window::Height();
-					psData.blurDistance = ppOptions.blurDistance;
+					psData.blurDistance = 5;
 					Graphics::FillAndBindNextConstantBuffer(&psData, sizeof(BlurData), D3D11_PIXEL_SHADER, 0);
 
 					// Draw exactly 3 vertices
 					Graphics::Context->Draw(3, 0);
+
+					// Unbind the SRV
+					ID3D11ShaderResourceView* nullSRV = nullptr;
+					Graphics::Context->PSSetShaderResources(0, 1, &nullSRV);
 				}
 
 				// Combine the oringial image with the bloomed image and draw to the back buffer
 				{
+					// Set the render target to the back buffer (or bloom combined texture if blur is also enabled)
 					if (ppOptions.blurEnabled)
-						Graphics::Context->OMSetRenderTargets(1, bloomCombinedRTV.GetAddressOf(), Graphics::DepthBufferDSV.Get());
+						Graphics::Context->OMSetRenderTargets(1, bloomCombinedRTV.GetAddressOf(),0);
 					else 
 						Graphics::Context->OMSetRenderTargets(1, Graphics::BackBufferRTV.GetAddressOf(), 0);
 
@@ -1276,26 +1288,37 @@ void Game::Draw(float deltaTime, float totalTime)
 
 					// Draw exactly 3 vertices
 					Graphics::Context->Draw(3, 0);
+
+					// Unbind the SRVs
+					ID3D11ShaderResourceView* nullSRV = nullptr;
+					Graphics::Context->PSSetShaderResources(0, 1, &nullSRV);
+					Graphics::Context->PSSetShaderResources(1, 1, &nullSRV);
 				}
 			}
 
 			// Blur
 			if (ppOptions.blurEnabled)
 			{
+				// Clean the blur render target if it was used for bloom
 				if (ppOptions.bloomEnabled)
 				{
 					const float rtClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 					Graphics::Context->ClearRenderTargetView(blurRTV.Get(), rtClearColor);
 				}
+				// Set the render target to the back buffer
 				Graphics::Context->OMSetRenderTargets(1, Graphics::BackBufferRTV.GetAddressOf(), 0);
 
 				// Activate shaders and bind resources
 				Graphics::Context->VSSetShader(ppVS.Get(), 0, 0);
 				Graphics::Context->PSSetShader(blurPS.Get(), 0, 0);
+
+				// If bloom is enabled, blur the bloomed image
+				// Otherwise, just blur the original image
 				if (ppOptions.bloomEnabled)
 					Graphics::Context->PSSetShaderResources(0, 1, bloomCombinedSRV.GetAddressOf());
 				else
 					Graphics::Context->PSSetShaderResources(0, 1, preSRV.GetAddressOf());
+
 				Graphics::Context->PSSetSamplers(0, 1, ppSampler.GetAddressOf());
 
 				struct BlurData

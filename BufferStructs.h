@@ -49,6 +49,10 @@ struct ShadowOptions
 	float lightProjectionSize;
 };
 
+#define BLOOM_TYPE_AVERAGE 0
+#define BLOOM_TYPE_LIGHTNESS 1
+#define BLOOM_TYPE_LUMINANCE 2
+
 struct PostProcessOptions
 {
 	bool postProcessEnabled;
@@ -56,4 +60,5 @@ struct PostProcessOptions
 	bool blurEnabled;
 	int blurDistance;
 	float bloomThreshold;
+	int bloomType;
 };

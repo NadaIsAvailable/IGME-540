@@ -13,6 +13,7 @@ float4 main(VertexToPixel input) : SV_TARGET
     float4 originalTexture = Original.Sample(ClampSampler, input.uv);
     float4 brightenTexture = Brighten.Sample(ClampSampler, input.uv);
     
+    // Combine the original texture and the brightened texture by adding them together
     float4 finalColor = originalTexture + brightenTexture;
     return finalColor;
 }
